@@ -35,7 +35,7 @@ namespace ConnectedDevice.NET.Communication
 
     public abstract class BaseCommunicatorParams
     {
-        public byte[] MessageTerminator = null;
+        public byte[] MessageTerminator { get; set; } = null;
     }
 
     public abstract class BaseCommunicator
@@ -45,12 +45,6 @@ namespace ConnectedDevice.NET.Communication
 
         public RemoteDevice? ConnectedDevice { get; protected set; }
         protected IMessageParser? ConnectedDeviceParser { get; set; }
-
-        public EventHandler<DeviceDiscoveredEventArgs>? OnDeviceDiscovered;
-        public EventHandler<DiscoverDevicesFinishedEventArgs>? OnDiscoverDevicesFinished;
-        public EventHandler<ConnectionChangedEventArgs>? OnConnectionChanged;
-        public EventHandler<AdapterStateChangedEventArgs>? OnAdapterStateChanged;
-        public EventHandler<MessageReceivedEventArgs>? OnMessageReceived;
 
         private List<byte> PartialReceivedData;
 
@@ -155,57 +149,54 @@ namespace ConnectedDevice.NET.Communication
 
         private void ParseAndNotifyMessage(byte[] data)
         {
-            var args = new MessageReceivedEventArgs();
+            MessageReceivedEventArgs args = null;
             try
             {
                 var message = this.ConnectedDeviceParser?.Parse(this.ConnectedDevice, data);
-                args.Message = message;
+                args = new MessageReceivedEventArgs(message, null);
             }
             catch (Exception e)
             {
                 var msg = string.Format("Error while parsing the incoming message: {0}", e.Message);
                 ConnectedDeviceManager.PrintLog(LogLevel.Error, msg);
-
-                args.Error = new ProtocolException(msg, e);
+                args = new MessageReceivedEventArgs(null, new ProtocolException(msg, e));
             }
             finally
             {
-                this.OnMessageReceived?.Invoke(this, args);
+                this.RaiseMessageReceivedEvent(args);
             }
         }
 
-    }
+        // events raising
 
-    public class AdapterStateChangedEventArgs : EventArgs
-    {
-        public AdapterState NewState;
-    };
+        protected void RaiseDeviceDiscoveredEvent(DeviceDiscoveredEventArgs args)
+        {
+            if (args == null) throw new ArgumentNullException("args");
+            ConnectedDeviceManager.RaiseEvent(ConnectedDeviceManager._deviceDiscovered, this, args);
+        }
 
-    public class DeviceDiscoveredEventArgs : EventArgs
-    {
-        public RemoteDevice DiscoveredDevice;
-    }
+        protected void RaiseDiscoverDevicesFinishedEvent(DiscoverDevicesFinishedEventArgs args)
+        {
+            if (args == null) throw new ArgumentNullException("args");
+            ConnectedDeviceManager.RaiseEvent(ConnectedDeviceManager._discoverDevicesFinished, this, args);
+        }
 
-    public class DiscoverDevicesFinishedEventArgs : EventArgs
-    {
-        public Exception? Error;
-    }
+        protected void RaiseMessageReceivedEvent(MessageReceivedEventArgs args)
+        {
+            if (args == null) throw new ArgumentNullException("args");
+            ConnectedDeviceManager.RaiseEvent(ConnectedDeviceManager._messageReceived, this, args);
+        }
 
-    public class ConnectionChangedEventArgs : EventArgs
-    {
-        public ConnectionState NewState;
-        public Exception? Error;
-    }
+        protected void RaiseAdapterStateChangedEvent(AdapterStateChangedEventArgs args)
+        {
+            if (args == null) throw new ArgumentNullException("args");
+            ConnectedDeviceManager.RaiseEvent(ConnectedDeviceManager._adapterStateChanged, this, args);
+        }
 
-    public class DataSendFinishedEventArgs : EventArgs
-    {
-        public Guid TransmissionId;
-        public Exception? Error;
-    }
-
-    public class MessageReceivedEventArgs : EventArgs
-    {
-        public ServerMessage Message;
-        public ProtocolException? Error;
+        protected void RaiseConnectionChangedEvent(ConnectionChangedEventArgs args)
+        {
+            if (args == null) throw new ArgumentNullException("args");
+            ConnectedDeviceManager.RaiseEvent(ConnectedDeviceManager._connectionChanged, this, args);
+        }
     }
 }

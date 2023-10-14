@@ -9,9 +9,9 @@ namespace ConnectedDevice.NET.Models
 {
     public class RemoteDevice
     {
-        public ConnectionType ConnectionType;
-        public string Name;
-        public string Address;
+        public ConnectionType ConnectionType { get; set; }
+        public string Name { get; set; }
+        public string Address { get; set; }
 
         public RemoteDevice(ConnectionType connectionType, string name, string address)
         {

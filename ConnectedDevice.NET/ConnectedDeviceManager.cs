@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -10,12 +11,10 @@ namespace ConnectedDevice.NET
 {
     public class ConnectedDeviceManagerParams
     {
-        public ILogger? Logger = null;
-
-        public ConnectedDeviceManagerParams() { }
+        public ILogger? Logger { get; set; } = null;
     }
 
-    public static class ConnectedDeviceManager
+    public static partial class ConnectedDeviceManager
     {
         private static Dictionary<ConnectionType, BaseCommunicator> Communicators = new Dictionary<ConnectionType, BaseCommunicator>();
         internal static ConnectedDeviceManagerParams Params = new ConnectedDeviceManagerParams();

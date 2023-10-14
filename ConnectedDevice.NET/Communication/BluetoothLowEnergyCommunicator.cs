@@ -17,16 +17,14 @@ namespace ConnectedDevice.NET.Communication
 {
     public class BluetoothLowEnergyCommunicatorParams : BaseCommunicatorParams
     {
-        public ScanMode ScanMode { get; } = ScanMode.Balanced;
-        public int ScanTimeout { get; } = 3000;
-        public ScanFilterOptions? ScanFilterOptions { get; } = default;
-        public Func<RemoteDevice, bool>? DeviceFilter { get; } = null;
-        public ConnectParameters ConnectParameters { get; } = default;
+        public ScanMode ScanMode { get; set; } = ScanMode.Balanced;
+        public int ScanTimeout { get; set; } = 3000;
+        public ScanFilterOptions? ScanFilterOptions { get; set; } = default;
+        public Func<RemoteDevice, bool>? DeviceFilter { get; set; } = null;
+        public ConnectParameters ConnectParameters { get; set; } = default;
 
-        public Guid WriteCharacteristicGuid { get; } = new Guid("0000ffe1-0000-1000-8000-00805f9b34fb");
-        public Guid ReadCharacteristicGuid { get; } = new Guid("0000ffe1-0000-1000-8000-00805f9b34fb");
-
-        public BluetoothLowEnergyCommunicatorParams() { }
+        public Guid WriteCharacteristicGuid { get; set; } = new Guid("0000ffe1-0000-1000-8000-00805f9b34fb");
+        public Guid ReadCharacteristicGuid { get; set; } = new Guid("0000ffe1-0000-1000-8000-00805f9b34fb");
     }
 
     public abstract class BluetoothLowEnergyCommunicator : BaseCommunicator
@@ -67,33 +65,31 @@ namespace ConnectedDevice.NET.Communication
             var dev = new RemoteDevice(ConnectionType.BLUETOOTH_LE, e.Device.Name, e.Device.Id.ToString());
 
             ConnectedDeviceManager.PrintLog(LogLevel.Information, "Device discovered: {0}", dev);
-            var args = new DeviceDiscoveredEventArgs()
-            {
-                DiscoveredDevice = dev
-            };
-            this.OnDeviceDiscovered?.Invoke(this, args);
+            var args = new DeviceDiscoveredEventArgs(dev);
+            this.RaiseDeviceDiscoveredEvent(args);
         }
 
         private void Ble_StateChanged(object? sender, BluetoothStateChangedArgs e)
         {
             ConnectedDeviceManager.PrintLog(LogLevel.Information, "Adapter state changed from {0} to {1}", e.OldState, e.NewState);
 
-            var args = new AdapterStateChangedEventArgs();
+            AdapterStateChangedEventArgs args;
             switch (e.NewState)
             {
                 case BluetoothState.On:
-                    args.NewState = AdapterState.ON;
-                    this.OnAdapterStateChanged?.Invoke(this, args);
+                    args = new AdapterStateChangedEventArgs(AdapterState.ON);
                     break;
                 case BluetoothState.Off:
-                    args.NewState = AdapterState.OFF;
-                    this.OnAdapterStateChanged?.Invoke(this, args);
+                    args = new AdapterStateChangedEventArgs(AdapterState.OFF);
                     break;
                 case BluetoothState.Unavailable:
-                    args.NewState = AdapterState.MISSING;
-                    this.OnAdapterStateChanged?.Invoke(this, args);
+                    args = new AdapterStateChangedEventArgs(AdapterState.MISSING);
                     break;
+                default:
+                    return;
             }
+
+            this.RaiseAdapterStateChangedEvent(args);
         }
 
         public override void StartDiscoverDevices(CancellationToken cToken)
@@ -113,12 +109,18 @@ namespace ConnectedDevice.NET.Communication
                 this.Ble.Adapter.ScanTimeout = Params.ScanTimeout;
                 await this.Ble.Adapter.StartScanningForDevicesAsync(
                     Params.ScanFilterOptions, 
-                    (d) => 
+                    (dev) => 
                     {
                         if (Params.DeviceFilter != null)
                         {
-                            var rd = new RemoteDevice(ConnectionType.BLUETOOTH_LE, d.Name, d.Id.ToString());
-                            return Params.DeviceFilter(rd);
+                            var rd = new RemoteDevice(ConnectionType.BLUETOOTH_LE, dev.Name, dev.Id.ToString());
+                            bool valid = Params.DeviceFilter(rd);
+                            if (!valid)
+                            {
+                                ConnectedDeviceManager.PrintLog(LogLevel.Warning, "Device found but filtered.");
+                                return false;
+                            }
+                            else return true;
                         }
                         else return true;
                     }, 
@@ -126,7 +128,8 @@ namespace ConnectedDevice.NET.Communication
                     cToken);
 
                 ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Discover finished.");
-                this.OnDiscoverDevicesFinished?.Invoke(this, new DiscoverDevicesFinishedEventArgs() { Error = null });
+                var args = new DiscoverDevicesFinishedEventArgs(null);
+                this.RaiseDiscoverDevicesFinishedEvent(args);
             }).Start();
         }
 
@@ -172,12 +175,8 @@ namespace ConnectedDevice.NET.Communication
                             break;
                     }
 
-                    var args = new ConnectionChangedEventArgs()
-                    {
-                        Error = null,
-                        NewState = ConnectionState.CONNECTED
-                    };
-                    this.OnConnectionChanged?.Invoke(this, args);
+                    var args = new ConnectionChangedEventArgs(ConnectionState.CONNECTED, null);
+                    this.RaiseConnectionChangedEvent(args);
                 }
                 catch (Exception e)
                 {
@@ -199,12 +198,8 @@ namespace ConnectedDevice.NET.Communication
                 await this.Ble.Adapter.DisconnectDeviceAsync(this.ConnectedDeviceNative);
                 this.ConnectedDevice = null;
 
-                var args = new ConnectionChangedEventArgs()
-                {
-                    Error = e,
-                    NewState = ConnectionState.DISCONNECTED
-                };
-                this.OnConnectionChanged?.Invoke(this, args);
+                var args = new ConnectionChangedEventArgs(ConnectionState.DISCONNECTED, e);
+                this.RaiseConnectionChangedEvent(args);
             });
         }
 

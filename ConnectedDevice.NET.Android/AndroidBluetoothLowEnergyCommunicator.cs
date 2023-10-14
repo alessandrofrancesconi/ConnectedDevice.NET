@@ -15,7 +15,6 @@ namespace ConnectedDevice.NET.Android
     public class AndroidBluetoothLowEnergyCommunicatorParams : BluetoothLowEnergyCommunicatorParams
     {
         public bool RequestPermission = true;
-        public bool RequestAdapterEnable = true;
         public bool CheckLocationSettings = true;
         public Func<Activity> GetCurrentActivityMethod = null;
     }
@@ -70,29 +69,20 @@ namespace ConnectedDevice.NET.Android
         {
             if (!this.RequestBluetoothPermissions())
             {
-                var args = new DiscoverDevicesFinishedEventArgs()
-                {
-                    Error = new MissingPermissionException("Some permissions are required.")
-                };
-                this.OnDiscoverDevicesFinished(this, args);
+                var args = new DiscoverDevicesFinishedEventArgs(new MissingPermissionException("Some permissions are required."));
+                this.RaiseDiscoverDevicesFinishedEvent(args);
                 return;
             }
             else if (this.GetAdapterState() == AdapterState.OFF)
             {
-                var args = new DiscoverDevicesFinishedEventArgs()
-                {
-                    Error = new AdapterDisabledException("Bluetooth adapter is disabled.")
-                };
-                this.OnDiscoverDevicesFinished(this, args);
+                var args = new DiscoverDevicesFinishedEventArgs(new MissingPermissionException("Bluetooth adapter is disabled."));
+                this.RaiseDiscoverDevicesFinishedEvent(args);
                 return;
             }
             else if (!this.CheckLocationSettings())
             {
-                var args = new DiscoverDevicesFinishedEventArgs()
-                {
-                    Error = new LocationServiceDisabledException("Location service is disabled.")
-                };
-                this.OnDiscoverDevicesFinished(this, args);
+                var args = new DiscoverDevicesFinishedEventArgs(new MissingPermissionException("Location service is disabled."));
+                this.RaiseDiscoverDevicesFinishedEvent(args);
                 return;
             }
 
