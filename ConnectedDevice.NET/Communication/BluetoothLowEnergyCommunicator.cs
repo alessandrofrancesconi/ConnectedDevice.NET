@@ -46,6 +46,7 @@ namespace ConnectedDevice.NET.Communication
             this.Ble = ble;
             this.Ble.StateChanged += Ble_StateChanged;
             this.Ble.Adapter.DeviceDiscovered += Adapter_DeviceDiscovered;
+            this.Ble.Adapter.DeviceConnectionError += Adapter_DeviceConnectionLost;
             this.Ble.Adapter.DeviceConnectionLost += Adapter_DeviceConnectionLost;
 
             this.FoundDevices = new List<RemoteDevice>();
@@ -55,7 +56,7 @@ namespace ConnectedDevice.NET.Communication
 
         private void Adapter_DeviceConnectionLost(object? sender, DeviceErrorEventArgs e)
         {
-            ConnectedDeviceManager.PrintLog(LogLevel.Error, "Device connection lost. {0}", e.ErrorMessage);
+            ConnectedDeviceManager.PrintLog(LogLevel.Error, "Device connection lost. {0}", e.ToString());
             var exc = new ConnectionLostException(e.ErrorMessage);
             this.DisconnectFromDeviceNative(exc);
         }
@@ -117,7 +118,7 @@ namespace ConnectedDevice.NET.Communication
                             bool valid = Params.DeviceFilter(rd);
                             if (!valid)
                             {
-                                ConnectedDeviceManager.PrintLog(LogLevel.Warning, "Device found but filtered.");
+                                ConnectedDeviceManager.PrintLog(LogLevel.Warning, "Device found but filtered ({0}, {1})", dev.Id.ToString(), dev.Name);
                                 return false;
                             }
                             else return true;
@@ -167,7 +168,7 @@ namespace ConnectedDevice.NET.Communication
                             if (readChar != null)
                             {
                                 readChar.ValueUpdated += ReadCharacteristic_ValueUpdated;
-                                await readChar.StartUpdatesAsync();
+                                _ = readChar.StartUpdatesAsync();
                             }
                         }
 
@@ -175,6 +176,8 @@ namespace ConnectedDevice.NET.Communication
                             break;
                     }
 
+                    ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Connection to '{0}' completed", dev.ToString());
+                    this.ConnectedDevice = dev;
                     var args = new ConnectionChangedEventArgs(ConnectionState.CONNECTED, null);
                     this.RaiseConnectionChangedEvent(args);
                 }
