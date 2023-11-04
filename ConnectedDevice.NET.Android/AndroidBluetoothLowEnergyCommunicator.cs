@@ -25,7 +25,7 @@ namespace ConnectedDevice.NET.Android
         
         public EventHandler<EventArgs>? OnLocationServiceDisabled;
 
-        private AndroidBluetoothLowEnergyCommunicatorParams Params = default;
+        private new AndroidBluetoothLowEnergyCommunicatorParams Params = default;
 
         public AndroidBluetoothLowEnergyCommunicator(IBluetoothLE ble, AndroidBluetoothLowEnergyCommunicatorParams p = default) : base(ble, p)
         {
