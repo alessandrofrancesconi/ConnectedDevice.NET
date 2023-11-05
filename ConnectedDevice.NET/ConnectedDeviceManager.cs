@@ -1,4 +1,5 @@
 ﻿using ConnectedDevice.NET.Communication;
+using ConnectedDevice.NET.Models;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
@@ -27,13 +28,20 @@ namespace ConnectedDevice.NET
             PrintLog(LogLevel.Debug, "Initialized");
         }
 
-        public static void SetCommunicator(ConnectionType type, BaseCommunicator comm)
+        public static BaseCommunicator SetCommunicator(ConnectionType type, BaseCommunicator comm)
         {
+            if (Initialized == false) 
+                throw new InvalidOperationException("You must call Initialize() before using this method");
+
             Communicators[type] = comm;
+            return comm;
         }
 
         public static BaseCommunicator GetCommunicator(ConnectionType type)
         {
+            if (Initialized == false) 
+                throw new InvalidOperationException("You must call Initialize() before using this method");
+
             if (!Communicators.ContainsKey(type) || Communicators[type] == null)
                 throw new ArgumentException("Communicator of type '{0}' does not exist", type.ToString());
 
@@ -43,6 +51,15 @@ namespace ConnectedDevice.NET
         public static void PrintLog(LogLevel level, string message, params object?[] args)
         {
             Params.Logger?.Log(level, "[ConnectedDevice.NET] " + message, args);
+        }
+
+        public static RemoteDevice? GetConnectedDevice(ConnectionType type)
+        {
+            if (Initialized == false)
+                throw new InvalidOperationException("You must call Initialize() before using this method");
+
+            var communicator = GetCommunicator(type);
+            return communicator.ConnectedDevice;
         }
     }
 }

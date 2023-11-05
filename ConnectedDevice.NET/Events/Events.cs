@@ -98,14 +98,19 @@ namespace ConnectedDevice.NET
 
     public class BaseEventArgs : EventArgs
     {
+        public BaseCommunicator Source;
 
+        public BaseEventArgs(BaseCommunicator s)
+        {
+            Source = s;
+        }
     }
 
     public class AdapterStateChangedEventArgs : BaseEventArgs
     {
         public AdapterState NewState;
 
-        public AdapterStateChangedEventArgs(AdapterState ns) : base()
+        public AdapterStateChangedEventArgs(BaseCommunicator s, AdapterState ns) : base(s)
         {
             this.NewState = ns;
         }
@@ -114,7 +119,7 @@ namespace ConnectedDevice.NET
     {
         public RemoteDevice DiscoveredDevice;
 
-        public DeviceDiscoveredEventArgs(RemoteDevice d) : base()
+        public DeviceDiscoveredEventArgs(BaseCommunicator s, RemoteDevice d) : base(s)
         {
             this.DiscoveredDevice = d;
         }
@@ -124,7 +129,7 @@ namespace ConnectedDevice.NET
     {
         public Exception? Error;
 
-        public DiscoverDevicesFinishedEventArgs(Exception? e) : base()
+        public DiscoverDevicesFinishedEventArgs(BaseCommunicator s, Exception? e) : base(s)
         {
             this.Error = e;
         }
@@ -135,7 +140,7 @@ namespace ConnectedDevice.NET
         public ConnectionState NewState;
         public Exception? Error;
 
-        public ConnectionChangedEventArgs(ConnectionState ns, Exception? e) : base()
+        public ConnectionChangedEventArgs(BaseCommunicator s, ConnectionState ns, Exception? e) : base(s)
         {
             this.NewState = ns;
             this.Error = e;
@@ -147,7 +152,7 @@ namespace ConnectedDevice.NET
         public Guid TransmissionId;
         public Exception? Error;
 
-        public DataSendFinishedEventArgs(Guid t, Exception? e) : base()
+        public DataSendFinishedEventArgs(BaseCommunicator s, Guid t, Exception? e) : base(s)
         {
             this.TransmissionId = t;
             this.Error = e;
@@ -159,7 +164,7 @@ namespace ConnectedDevice.NET
         public ServerMessage Message;
         public ProtocolException? Error;
 
-        public MessageReceivedEventArgs(ServerMessage m, ProtocolException? e) : base()
+        public MessageReceivedEventArgs(BaseCommunicator s, ServerMessage m, ProtocolException? e = null) : base(s)
         {
             this.Message = m;
             this.Error = e;

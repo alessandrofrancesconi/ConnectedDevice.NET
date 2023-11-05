@@ -8,6 +8,6 @@ namespace ConnectedDevice.NET.Communication.Protocol
 {
     public class ClientMessage
     {
-        public byte[] RawData;
+        public byte[] Data;
     }
 }

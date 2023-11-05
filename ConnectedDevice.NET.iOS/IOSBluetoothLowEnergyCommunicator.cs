@@ -1,5 +1,6 @@
 ﻿using ConnectedDevice.NET.Communication;
 using ConnectedDevice.NET.Exceptions;
+using ConnectedDevice.NET.Models;
 using CoreBluetooth;
 using CoreFoundation;
 using Microsoft.Extensions.Logging;
@@ -37,10 +38,16 @@ namespace ConnectedDevice.NET.iOS
             );
         }
 
+        private void CheckPermissions()
+        {
+            if (!this.RequestBluetoothPermissions()) throw new MissingPermissionException("Some permissions are required.");
+            if (this.GetAdapterState() == AdapterState.OFF) throw new AdapterDisabledException("Bluetooth adapter is disabled.");
+        }
+
         private void OnBluetoothAdapterStateChanged()
         {
             var state = this.GetAdapterState();
-            this.RaiseAdapterStateChangedEvent(new AdapterStateChangedEventArgs(state));
+            this.RaiseAdapterStateChangedEvent(new AdapterStateChangedEventArgs(this, state));
         }
 
         private bool RequestBluetoothPermissions()
@@ -69,17 +76,31 @@ namespace ConnectedDevice.NET.iOS
             return allowed;
         }
 
-        public override void StartDiscoverDevices(CancellationToken cToken = default)
+        protected override void ConnectToDeviceNative(RemoteDevice dev, CancellationToken cToken = default)
         {
-            if (!this.RequestBluetoothPermissions())
+            try
             {
-                var args = new DiscoverDevicesFinishedEventArgs(new MissingPermissionException("Bluetooth permission is required."));
-                this.RaiseDiscoverDevicesFinishedEvent(args);
+                this.CheckPermissions();
+            }
+            catch (Exception e)
+            {
+                var args = new ConnectionChangedEventArgs(this, ConnectionState.DISCONNECTED, e);
+                this.RaiseConnectionChangedEvent(args);
                 return;
             }
-            else if (this.GetAdapterState() == AdapterState.OFF)
+
+            base.ConnectToDeviceNative(dev, cToken);
+        }
+
+        public override void StartDiscoverDevices(CancellationToken cToken = default)
+        {
+            try
             {
-                var args = new DiscoverDevicesFinishedEventArgs(new MissingPermissionException("Bluetooth adapter is disabled."));
+                this.CheckPermissions();
+            }
+            catch (Exception e)
+            {
+                var args = new DiscoverDevicesFinishedEventArgs(this, e);
                 this.RaiseDiscoverDevicesFinishedEvent(args);
                 return;
             }

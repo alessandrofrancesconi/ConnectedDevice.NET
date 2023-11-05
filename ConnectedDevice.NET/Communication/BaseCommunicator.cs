@@ -42,8 +42,8 @@ namespace ConnectedDevice.NET.Communication
     {
         public ConnectionType ConnectionType { get; protected set; }
         public ConnectionState ConnectionState { get; protected set; }
-
         public RemoteDevice? ConnectedDevice { get; protected set; }
+
         protected IMessageParser? ConnectedDeviceParser { get; set; }
 
         private List<byte> PartialReceivedData;
@@ -153,13 +153,13 @@ namespace ConnectedDevice.NET.Communication
             try
             {
                 var message = this.ConnectedDeviceParser?.Parse(this.ConnectedDevice, data);
-                args = new MessageReceivedEventArgs(message, null);
+                args = new MessageReceivedEventArgs(this, message, null);
             }
             catch (Exception e)
             {
                 var msg = string.Format("Error while parsing the incoming message: {0}", e.Message);
                 ConnectedDeviceManager.PrintLog(LogLevel.Error, msg);
-                args = new MessageReceivedEventArgs(null, new ProtocolException(msg, e));
+                args = new MessageReceivedEventArgs(this, null, new ProtocolException(msg, e));
             }
             finally
             {

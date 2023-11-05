@@ -7,6 +7,7 @@ using AndroidX.Core.App;
 using AndroidX.Core.Content;
 using ConnectedDevice.NET.Communication;
 using ConnectedDevice.NET.Exceptions;
+using ConnectedDevice.NET.Models;
 using Microsoft.Extensions.Logging;
 using Plugin.BLE.Abstractions.Contracts;
 
@@ -30,6 +31,13 @@ namespace ConnectedDevice.NET.Android
         public AndroidBluetoothLowEnergyCommunicator(IBluetoothLE ble, AndroidBluetoothLowEnergyCommunicatorParams p = default) : base(ble, p)
         {
             this.Params = p;
+        }
+
+        private void CheckPermissions()
+        {
+            if (!this.RequestBluetoothPermissions()) throw new MissingPermissionException("Some permissions are required.");
+            if (this.GetAdapterState() == AdapterState.OFF) throw new AdapterDisabledException("Bluetooth adapter is disabled.");
+            if (!this.CheckLocationSettings()) throw new LocationServiceDisabledException("Location service is disabled.");
         }
 
         private bool RequestBluetoothPermissions()
@@ -65,23 +73,31 @@ namespace ConnectedDevice.NET.Android
             return true;
         }
 
+        protected override void ConnectToDeviceNative(RemoteDevice dev, CancellationToken cToken = default)
+        {
+            try
+            {
+                this.CheckPermissions();
+            }
+            catch (Exception e)
+            {
+                var args = new ConnectionChangedEventArgs(this, ConnectionState.DISCONNECTED, e);
+                this.RaiseConnectionChangedEvent(args);
+                return;
+            }
+
+            base.ConnectToDeviceNative(dev, cToken);
+        }
+
         public override void StartDiscoverDevices(CancellationToken cToken = default)
         {
-            if (!this.RequestBluetoothPermissions())
+            try
             {
-                var args = new DiscoverDevicesFinishedEventArgs(new MissingPermissionException("Some permissions are required."));
-                this.RaiseDiscoverDevicesFinishedEvent(args);
-                return;
+                this.CheckPermissions();
             }
-            else if (this.GetAdapterState() == AdapterState.OFF)
+            catch (Exception e)
             {
-                var args = new DiscoverDevicesFinishedEventArgs(new MissingPermissionException("Bluetooth adapter is disabled."));
-                this.RaiseDiscoverDevicesFinishedEvent(args);
-                return;
-            }
-            else if (!this.CheckLocationSettings())
-            {
-                var args = new DiscoverDevicesFinishedEventArgs(new MissingPermissionException("Location service is disabled."));
+                var args = new DiscoverDevicesFinishedEventArgs(this, e);
                 this.RaiseDiscoverDevicesFinishedEvent(args);
                 return;
             }

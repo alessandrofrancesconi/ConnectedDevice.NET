@@ -66,7 +66,7 @@ namespace ConnectedDevice.NET.Communication
             var dev = new RemoteDevice(ConnectionType.BLUETOOTH_LE, e.Device.Name, e.Device.Id.ToString());
 
             ConnectedDeviceManager.PrintLog(LogLevel.Information, "Device discovered: {0}", dev);
-            var args = new DeviceDiscoveredEventArgs(dev);
+            var args = new DeviceDiscoveredEventArgs(this, dev);
             this.RaiseDeviceDiscoveredEvent(args);
         }
 
@@ -78,13 +78,13 @@ namespace ConnectedDevice.NET.Communication
             switch (e.NewState)
             {
                 case BluetoothState.On:
-                    args = new AdapterStateChangedEventArgs(AdapterState.ON);
+                    args = new AdapterStateChangedEventArgs(this, AdapterState.ON);
                     break;
                 case BluetoothState.Off:
-                    args = new AdapterStateChangedEventArgs(AdapterState.OFF);
+                    args = new AdapterStateChangedEventArgs(this, AdapterState.OFF);
                     break;
                 case BluetoothState.Unavailable:
-                    args = new AdapterStateChangedEventArgs(AdapterState.MISSING);
+                    args = new AdapterStateChangedEventArgs(this, AdapterState.MISSING);
                     break;
                 default:
                     return;
@@ -129,7 +129,7 @@ namespace ConnectedDevice.NET.Communication
                     cToken);
 
                 ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Discover finished.");
-                var args = new DiscoverDevicesFinishedEventArgs(null);
+                var args = new DiscoverDevicesFinishedEventArgs(this, null);
                 this.RaiseDiscoverDevicesFinishedEvent(args);
             }).Start();
         }
@@ -178,7 +178,7 @@ namespace ConnectedDevice.NET.Communication
 
                     ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Connection to '{0}' completed", dev.ToString());
                     this.ConnectedDevice = dev;
-                    var args = new ConnectionChangedEventArgs(ConnectionState.CONNECTED, null);
+                    var args = new ConnectionChangedEventArgs(this, ConnectionState.CONNECTED, null);
                     this.RaiseConnectionChangedEvent(args);
                 }
                 catch (Exception e)
@@ -201,14 +201,14 @@ namespace ConnectedDevice.NET.Communication
                 await this.Ble.Adapter.DisconnectDeviceAsync(this.ConnectedDeviceNative);
                 this.ConnectedDevice = null;
 
-                var args = new ConnectionChangedEventArgs(ConnectionState.DISCONNECTED, e);
+                var args = new ConnectionChangedEventArgs(this, ConnectionState.DISCONNECTED, e);
                 this.RaiseConnectionChangedEvent(args);
             });
         }
 
         protected override async void SendDataNative(ClientMessage message)
         {
-            var res = await this.WriteCharacteristic.WriteAsync(message.RawData);
+            var res = await this.WriteCharacteristic.WriteAsync(message.Data);
             if (res != 0) throw new Exception("Data send error");
         }
     }
