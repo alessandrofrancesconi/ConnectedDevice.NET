@@ -3,6 +3,8 @@ using Android.Bluetooth;
 using Android.Content;
 using Android.Content.PM;
 using Android.Locations;
+using Android.OS;
+using Android.Provider;
 using AndroidX.Core.App;
 using AndroidX.Core.Content;
 using ConnectedDevice.NET.Communication;
@@ -10,6 +12,7 @@ using ConnectedDevice.NET.Exceptions;
 using ConnectedDevice.NET.Models;
 using Microsoft.Extensions.Logging;
 using Plugin.BLE.Abstractions.Contracts;
+using static Android.Provider.CallLog;
 
 namespace ConnectedDevice.NET.Android
 {
@@ -119,10 +122,21 @@ namespace ConnectedDevice.NET.Android
 
             if (!OperatingSystem.IsAndroidVersionAtLeast(31))
             {
-                LocationManager locationManager = (LocationManager)Application.Context.GetSystemService(Context.LocationService);
-                if (!locationManager.IsProviderEnabled(LocationManager.GpsProvider))
+                bool locationEnabled = true;
+                if (OperatingSystem.IsAndroidVersionAtLeast(28))
                 {
-                    ConnectedDeviceManager.PrintLog(LogLevel.Warning, "Location Service found to be disabled. Tell this to the user!");
+                    LocationManager lm = (LocationManager)Application.Context.GetSystemService(Context.LocationService);
+                    locationEnabled = lm.IsLocationEnabled;
+                }
+                else
+                {
+                    int mode = Settings.Secure.GetInt(Application.Context.ContentResolver, Settings.Secure.LocationMode, (int)SecurityLocationMode.Off);
+                    locationEnabled = (mode != (int)SecurityLocationMode.Off);
+                }
+
+                if (!locationEnabled)
+                {
+                    ConnectedDeviceManager.PrintLog(LogLevel.Warning, "Location Service is disabled.");
                     return false;
                 }
             }

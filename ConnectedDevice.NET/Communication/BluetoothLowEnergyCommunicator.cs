@@ -17,7 +17,21 @@ namespace ConnectedDevice.NET.Communication
 {
     public class BluetoothLowEnergyCommunicatorParams : BaseCommunicatorParams
     {
-        public ScanMode ScanMode { get; set; } = ScanMode.Balanced;
+        public enum BtScanMatchMode
+        {
+            STICKY,
+            AGRESSIVE
+        };
+        public enum BtScanMode
+        {
+            PASSIVE,
+            LOW_POWER,
+            BALANCED,
+            LOW_LATENCY
+        };
+
+        public BtScanMode ScanMode { get; set; } = BtScanMode.BALANCED;
+        public BtScanMatchMode ScanMatchMode { get; set; } = BtScanMatchMode.STICKY;
         public int ScanTimeout { get; set; } = 3000;
         public ScanFilterOptions? ScanFilterOptions { get; set; } = default;
         public Func<RemoteDevice, bool>? DeviceFilter { get; set; } = null;
@@ -106,8 +120,20 @@ namespace ConnectedDevice.NET.Communication
             this.FoundDevices.Clear();
             new Task(async () =>
             {
-                this.Ble.Adapter.ScanMode = Params.ScanMode;
-                this.Ble.Adapter.ScanTimeout = Params.ScanTimeout;
+                if (this.Params.ScanMatchMode == BluetoothLowEnergyCommunicatorParams.BtScanMatchMode.STICKY) 
+                    this.Ble.Adapter.ScanMatchMode = ScanMatchMode.STICKY;
+                if (this.Params.ScanMatchMode == BluetoothLowEnergyCommunicatorParams.BtScanMatchMode.AGRESSIVE)
+                    this.Ble.Adapter.ScanMatchMode = ScanMatchMode.AGRESSIVE;
+
+                if (this.Params.ScanMode == BluetoothLowEnergyCommunicatorParams.BtScanMode.PASSIVE)
+                    this.Ble.Adapter.ScanMode = ScanMode.Passive;
+                if (this.Params.ScanMode == BluetoothLowEnergyCommunicatorParams.BtScanMode.LOW_POWER)
+                    this.Ble.Adapter.ScanMode = ScanMode.LowPower;
+                if (this.Params.ScanMode == BluetoothLowEnergyCommunicatorParams.BtScanMode.BALANCED)
+                    this.Ble.Adapter.ScanMode = ScanMode.Balanced;
+                if (this.Params.ScanMode == BluetoothLowEnergyCommunicatorParams.BtScanMode.LOW_LATENCY)
+                    this.Ble.Adapter.ScanMode = ScanMode.LowLatency;
+
                 await this.Ble.Adapter.StartScanningForDevicesAsync(
                     Params.ScanFilterOptions, 
                     (dev) => 
@@ -151,30 +177,37 @@ namespace ConnectedDevice.NET.Communication
 
                     var services = await this.ConnectedDeviceNative.GetServicesAsync(cToken);
                     ICharacteristic? writeChar = null, readChar = null;
+                    bool readCharFound = (this.Params.ReadCharacteristicGuid == null);
+                    bool writeCharFound = (this.Params.WriteCharacteristicGuid == null);
                     foreach (var service in services)
                     {
-                        if (writeChar == null)
+                        if (!writeCharFound)
                         {
                             writeChar = await service.GetCharacteristicAsync(this.Params.WriteCharacteristicGuid);
                             if (writeChar != null)
                             {
                                 this.WriteCharacteristic = writeChar;
+                                writeCharFound = true;
                             }
                         }
 
-                        if (readChar == null)
+                        if (!readCharFound)
                         {
                             readChar = await service.GetCharacteristicAsync(this.Params.ReadCharacteristicGuid);
                             if (readChar != null)
                             {
                                 readChar.ValueUpdated += ReadCharacteristic_ValueUpdated;
                                 _ = readChar.StartUpdatesAsync();
+                                readCharFound = true;
                             }
                         }
 
-                        if (writeChar != null && readChar != null)
+                        if (writeCharFound && readCharFound)
                             break;
                     }
+
+                    if (!writeCharFound) throw new Exception("Cannot find needed write characteristic "+ this.Params.WriteCharacteristicGuid.ToString());
+                    if (!readCharFound) throw new Exception("Cannot find needed read characteristic " + this.Params.ReadCharacteristicGuid.ToString());
 
                     ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Connection to '{0}' completed", dev.ToString());
                     this.ConnectedDevice = dev;
@@ -198,7 +231,7 @@ namespace ConnectedDevice.NET.Communication
         {
             Task.Run(async () =>
             {
-                await this.Ble.Adapter.DisconnectDeviceAsync(this.ConnectedDeviceNative);
+                if (this.ConnectedDeviceNative != null) await this.Ble.Adapter.DisconnectDeviceAsync(this.ConnectedDeviceNative);
                 this.ConnectedDevice = null;
 
                 var args = new ConnectionChangedEventArgs(this, ConnectionState.DISCONNECTED, e);
