@@ -37,8 +37,8 @@ namespace ConnectedDevice.NET.Communication
         public Func<RemoteDevice, bool>? DeviceFilter { get; set; } = null;
         public ConnectParameters ConnectParameters { get; set; } = default;
 
-        public Guid WriteCharacteristicGuid { get; set; } = new Guid("0000ffe1-0000-1000-8000-00805f9b34fb");
-        public Guid ReadCharacteristicGuid { get; set; } = new Guid("0000ffe1-0000-1000-8000-00805f9b34fb");
+        public Guid? WriteCharacteristicGuid { get; set; } = new Guid("0000ffe1-0000-1000-8000-00805f9b34fb");
+        public Guid? ReadCharacteristicGuid { get; set; } = new Guid("0000ffe1-0000-1000-8000-00805f9b34fb");
     }
 
     public abstract class BluetoothLowEnergyCommunicator : BaseCommunicator
@@ -183,7 +183,7 @@ namespace ConnectedDevice.NET.Communication
                     {
                         if (!writeCharFound)
                         {
-                            writeChar = await service.GetCharacteristicAsync(this.Params.WriteCharacteristicGuid);
+                            writeChar = await service.GetCharacteristicAsync((Guid)this.Params.WriteCharacteristicGuid);
                             if (writeChar != null)
                             {
                                 this.WriteCharacteristic = writeChar;
@@ -193,7 +193,7 @@ namespace ConnectedDevice.NET.Communication
 
                         if (!readCharFound)
                         {
-                            readChar = await service.GetCharacteristicAsync(this.Params.ReadCharacteristicGuid);
+                            readChar = await service.GetCharacteristicAsync((Guid)this.Params.ReadCharacteristicGuid);
                             if (readChar != null)
                             {
                                 readChar.ValueUpdated += ReadCharacteristic_ValueUpdated;
