@@ -117,6 +117,14 @@ namespace ConnectedDevice.NET.Communication
                 return;
             }
 
+            CancellationTokenSource localToken = null;
+            if (cToken == default)
+            {
+                localToken = new CancellationTokenSource();
+                localToken.CancelAfter(this.Params.ScanTimeout);
+                cToken = localToken.Token;
+            }
+
             this.FoundDevices.Clear();
             new Task(async () =>
             {
