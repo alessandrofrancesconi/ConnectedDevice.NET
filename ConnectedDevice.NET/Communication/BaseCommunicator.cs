@@ -119,12 +119,13 @@ namespace ConnectedDevice.NET.Communication
                 var startIndex = 0;
                 do
                 {
-                    var terminatorIndex = data.AsSpan(startIndex).IndexOf(this.Params.MessageTerminator);
+                    var subData = data.Skip(startIndex).ToArray();
+                    var terminatorIndex = Utils.IndexOfBytes(subData, this.Params.MessageTerminator);
                     if (terminatorIndex > -1)
                     {
                         var dataLength = terminatorIndex + this.Params.MessageTerminator.Length;
                         var sub = new byte[dataLength];
-                        Array.Copy(data, startIndex, sub, 0, dataLength);
+                        Array.Copy(subData, sub, dataLength);
                         this.PartialReceivedData.AddRange(sub);
 
                         this.ParseAndNotifyMessage(this.PartialReceivedData.ToArray());
@@ -134,7 +135,7 @@ namespace ConnectedDevice.NET.Communication
                     else
                     {
                         // no terminator found, just append to the partial data without parsing, and exit
-                        this.PartialReceivedData.AddRange(data);
+                        this.PartialReceivedData.AddRange(subData.ToArray());
                         break;
                     }
                 }

@@ -8,7 +8,7 @@
 
   <ItemGroup>
     <PackageReference Include="Plugin.BLE" Version="3.0.0" />
-    <PackageReference Include="Xamarin.AndroidX.Core" Version="1.12.0.2" />
+    <PackageReference Include="Xamarin.AndroidX.Core" Version="1.12.0.3" />
   </ItemGroup>
 
   <ItemGroup>
