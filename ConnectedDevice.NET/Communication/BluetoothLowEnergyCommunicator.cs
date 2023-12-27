@@ -6,6 +6,7 @@ using Plugin.BLE.Abstractions;
 using Plugin.BLE.Abstractions.Contracts;
 using Plugin.BLE.Abstractions.EventArgs;
 using Plugin.BLE.Abstractions.Exceptions;
+using Plugin.BLE.Abstractions.Extensions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -45,7 +46,6 @@ namespace ConnectedDevice.NET.Communication
     {
         private IBluetoothLE Ble;
         
-        private Task ConnectionTask;
         private IDevice ConnectedDeviceNative;
         private ICharacteristic WriteCharacteristic;
 
@@ -107,7 +107,7 @@ namespace ConnectedDevice.NET.Communication
             this.RaiseAdapterStateChangedEvent(args);
         }
 
-        public override void StartDiscoverDevices(CancellationToken cToken)
+        public override async Task DiscoverDevices(CancellationToken cToken)
         {
             ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Request to discover devices...");
 
@@ -117,117 +117,101 @@ namespace ConnectedDevice.NET.Communication
                 return;
             }
 
-            CancellationTokenSource localToken = null;
-            if (cToken == default)
-            {
-                localToken = new CancellationTokenSource();
-                localToken.CancelAfter(this.Params.ScanTimeout);
-                cToken = localToken.Token;
-            }
-
             this.FoundDevices.Clear();
-            new Task(async () =>
-            {
-                if (this.Params.ScanMatchMode == BluetoothLowEnergyCommunicatorParams.BtScanMatchMode.STICKY) 
-                    this.Ble.Adapter.ScanMatchMode = ScanMatchMode.STICKY;
-                if (this.Params.ScanMatchMode == BluetoothLowEnergyCommunicatorParams.BtScanMatchMode.AGRESSIVE)
-                    this.Ble.Adapter.ScanMatchMode = ScanMatchMode.AGRESSIVE;
+            if (this.Params.ScanMatchMode == BluetoothLowEnergyCommunicatorParams.BtScanMatchMode.STICKY)
+                this.Ble.Adapter.ScanMatchMode = ScanMatchMode.STICKY;
+            if (this.Params.ScanMatchMode == BluetoothLowEnergyCommunicatorParams.BtScanMatchMode.AGRESSIVE)
+                this.Ble.Adapter.ScanMatchMode = ScanMatchMode.AGRESSIVE;
 
-                if (this.Params.ScanMode == BluetoothLowEnergyCommunicatorParams.BtScanMode.PASSIVE)
-                    this.Ble.Adapter.ScanMode = ScanMode.Passive;
-                if (this.Params.ScanMode == BluetoothLowEnergyCommunicatorParams.BtScanMode.LOW_POWER)
-                    this.Ble.Adapter.ScanMode = ScanMode.LowPower;
-                if (this.Params.ScanMode == BluetoothLowEnergyCommunicatorParams.BtScanMode.BALANCED)
-                    this.Ble.Adapter.ScanMode = ScanMode.Balanced;
-                if (this.Params.ScanMode == BluetoothLowEnergyCommunicatorParams.BtScanMode.LOW_LATENCY)
-                    this.Ble.Adapter.ScanMode = ScanMode.LowLatency;
+            if (this.Params.ScanMode == BluetoothLowEnergyCommunicatorParams.BtScanMode.PASSIVE)
+                this.Ble.Adapter.ScanMode = ScanMode.Passive;
+            if (this.Params.ScanMode == BluetoothLowEnergyCommunicatorParams.BtScanMode.LOW_POWER)
+                this.Ble.Adapter.ScanMode = ScanMode.LowPower;
+            if (this.Params.ScanMode == BluetoothLowEnergyCommunicatorParams.BtScanMode.BALANCED)
+                this.Ble.Adapter.ScanMode = ScanMode.Balanced;
+            if (this.Params.ScanMode == BluetoothLowEnergyCommunicatorParams.BtScanMode.LOW_LATENCY)
+                this.Ble.Adapter.ScanMode = ScanMode.LowLatency;
 
-                await this.Ble.Adapter.StartScanningForDevicesAsync(
-                    Params.ScanFilterOptions, 
-                    (dev) => 
+            CancellationTokenSource localToken = new CancellationTokenSource();
+            CancellationTokenSource mergedTokens = CancellationTokenSource.CreateLinkedTokenSource(localToken.Token, cToken);
+            if (this.Params.ScanTimeout > 0) localToken.CancelAfter(this.Params.ScanTimeout);
+
+            await this.Ble.Adapter.StartScanningForDevicesAsync(
+                Params.ScanFilterOptions,
+                (dev) =>
+                {
+                    if (Params.DeviceFilter != null)
                     {
-                        if (Params.DeviceFilter != null)
+                        var rd = new RemoteDevice(ConnectionType.BLUETOOTH_LE, dev.Name, dev.Id.ToString());
+                        bool valid = Params.DeviceFilter(rd);
+                        if (!valid)
                         {
-                            var rd = new RemoteDevice(ConnectionType.BLUETOOTH_LE, dev.Name, dev.Id.ToString());
-                            bool valid = Params.DeviceFilter(rd);
-                            if (!valid)
-                            {
-                                ConnectedDeviceManager.PrintLog(LogLevel.Warning, "Device found but filtered ({0}, {1})", dev.Id.ToString(), dev.Name);
-                                return false;
-                            }
-                            else return true;
+                            ConnectedDeviceManager.PrintLog(LogLevel.Warning, "Device found but filtered ({0}, {1})", dev.Id.ToString(), dev.Name);
+                            return false;
                         }
                         else return true;
-                    }, 
-                    false,
-                    cToken);
+                    }
+                    else return true;
+                },
+                false,
+                mergedTokens.Token);
 
-                ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Discover finished.");
-                var args = new DiscoverDevicesFinishedEventArgs(this, null);
-                this.RaiseDiscoverDevicesFinishedEvent(args);
-            }).Start();
+            ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Discover finished.");
+            var args = new DiscoverDevicesFinishedEventArgs(this, null);
+            this.RaiseDiscoverDevicesFinishedEvent(args);
         }
 
-        protected override void ConnectToDeviceNative(RemoteDevice dev, CancellationToken cToken = default)
+        protected override async Task ConnectToDeviceNative(RemoteDevice dev, CancellationToken cToken = default)
         {
-            if (this.ConnectionTask != null && this.ConnectionTask.Status == TaskStatus.Running)
+            try
             {
-                ConnectedDeviceManager.PrintLog(LogLevel.Warning, "A connection attempt is already running.");
-                return;
-            }
+                this.ConnectedDeviceNative = await this.Ble.Adapter.ConnectToKnownDeviceAsync(new Guid(dev.Address), this.Params.ConnectParameters, cToken);
+                ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Connected to {0}. Setting RX/TX services...", dev.Address);
 
-            this.ConnectionTask = Task.Run(async () =>
-            {
-                try
+                var services = await this.ConnectedDeviceNative.GetServicesAsync(cToken);
+                ICharacteristic? writeChar = null, readChar = null;
+                bool readCharFound = (this.Params.ReadCharacteristicGuid == null);
+                bool writeCharFound = (this.Params.WriteCharacteristicGuid == null);
+                foreach (var service in services)
                 {
-                    this.ConnectedDeviceNative = await this.Ble.Adapter.ConnectToKnownDeviceAsync(new Guid(dev.Address), this.Params.ConnectParameters, cToken);
-                    ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Connected to {0}. Setting RX/TX services...", dev.Address);
-
-                    var services = await this.ConnectedDeviceNative.GetServicesAsync(cToken);
-                    ICharacteristic? writeChar = null, readChar = null;
-                    bool readCharFound = (this.Params.ReadCharacteristicGuid == null);
-                    bool writeCharFound = (this.Params.WriteCharacteristicGuid == null);
-                    foreach (var service in services)
+                    if (!writeCharFound)
                     {
-                        if (!writeCharFound)
+                        writeChar = await service.GetCharacteristicAsync((Guid)this.Params.WriteCharacteristicGuid);
+                        if (writeChar != null)
                         {
-                            writeChar = await service.GetCharacteristicAsync((Guid)this.Params.WriteCharacteristicGuid);
-                            if (writeChar != null)
-                            {
-                                this.WriteCharacteristic = writeChar;
-                                writeCharFound = true;
-                            }
+                            this.WriteCharacteristic = writeChar;
+                            writeCharFound = true;
                         }
-
-                        if (!readCharFound)
-                        {
-                            readChar = await service.GetCharacteristicAsync((Guid)this.Params.ReadCharacteristicGuid);
-                            if (readChar != null)
-                            {
-                                readChar.ValueUpdated += ReadCharacteristic_ValueUpdated;
-                                _ = readChar.StartUpdatesAsync();
-                                readCharFound = true;
-                            }
-                        }
-
-                        if (writeCharFound && readCharFound)
-                            break;
                     }
 
-                    if (!writeCharFound) throw new Exception("Cannot find needed write characteristic "+ this.Params.WriteCharacteristicGuid.ToString());
-                    if (!readCharFound) throw new Exception("Cannot find needed read characteristic " + this.Params.ReadCharacteristicGuid.ToString());
+                    if (!readCharFound)
+                    {
+                        readChar = await service.GetCharacteristicAsync((Guid)this.Params.ReadCharacteristicGuid);
+                        if (readChar != null)
+                        {
+                            readChar.ValueUpdated += ReadCharacteristic_ValueUpdated;
+                            _ = readChar.StartUpdatesAsync();
+                            readCharFound = true;
+                        }
+                    }
 
-                    ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Connection to '{0}' completed", dev.ToString());
-                    this.ConnectedDevice = dev;
-                    var args = new ConnectionChangedEventArgs(this, ConnectionState.CONNECTED, null);
-                    this.RaiseConnectionChangedEvent(args);
+                    if (writeCharFound && readCharFound)
+                        break;
                 }
-                catch (Exception e)
-                {
-                    ConnectedDeviceManager.PrintLog(LogLevel.Error, "Error while connecting: " + e.Message);
-                    this.DisconnectFromDeviceNative(e);
-                }
-            });
+
+                if (!writeCharFound) throw new Exception("Cannot find needed write characteristic " + this.Params.WriteCharacteristicGuid.ToString());
+                if (!readCharFound) throw new Exception("Cannot find needed read characteristic " + this.Params.ReadCharacteristicGuid.ToString());
+
+                ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Connection to '{0}' completed", dev.ToString());
+                this.ConnectedDevice = dev;
+                var args = new ConnectionChangedEventArgs(this, ConnectionState.CONNECTED, null);
+                this.RaiseConnectionChangedEvent(args);
+            }
+            catch (Exception e)
+            {
+                ConnectedDeviceManager.PrintLog(LogLevel.Error, "Error while connecting: " + e.Message);
+                this.DisconnectFromDeviceNative(e);
+            }
         }
 
         private void ReadCharacteristic_ValueUpdated(object? sender, CharacteristicUpdatedEventArgs e)
@@ -235,22 +219,27 @@ namespace ConnectedDevice.NET.Communication
             this.HandleReceivedData(e.Characteristic.Value);
         }
 
-        protected override void DisconnectFromDeviceNative(Exception? e = null)
+        protected override async Task DisconnectFromDeviceNative(Exception? e = null)
         {
-            Task.Run(async () =>
-            {
-                if (this.ConnectedDeviceNative != null) await this.Ble.Adapter.DisconnectDeviceAsync(this.ConnectedDeviceNative);
-                this.ConnectedDevice = null;
+            if (this.ConnectedDeviceNative != null) await this.Ble.Adapter.DisconnectDeviceAsync(this.ConnectedDeviceNative);
+            this.ConnectedDevice = null;
 
-                var args = new ConnectionChangedEventArgs(this, ConnectionState.DISCONNECTED, e);
-                this.RaiseConnectionChangedEvent(args);
-            });
+            var args = new ConnectionChangedEventArgs(this, ConnectionState.DISCONNECTED, e);
+            this.RaiseConnectionChangedEvent(args);
         }
 
-        protected override async void SendDataNative(ClientMessage message)
+        protected override async Task SendDataNative(ClientMessage message)
         {
+            if (this.WriteCharacteristic == null) throw new NullReferenceException("Write characteristic is not set. Cannot send data.");
+
             var res = await this.WriteCharacteristic.WriteAsync(message.Data);
             if (res != 0) throw new Exception("Data send error");
+        }
+
+        public override ConnectionState GetConnectionState()
+        {
+            if (this.ConnectedDeviceNative?.State == DeviceState.Connected) return ConnectionState.CONNECTED;
+            else return ConnectionState.DISCONNECTED;
         }
     }
 }

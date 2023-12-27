@@ -76,7 +76,7 @@ namespace ConnectedDevice.NET.Android
             return true;
         }
 
-        protected override void ConnectToDeviceNative(RemoteDevice dev, CancellationToken cToken = default)
+        protected override async Task ConnectToDeviceNative(RemoteDevice dev, CancellationToken cToken = default)
         {
             try
             {
@@ -89,10 +89,10 @@ namespace ConnectedDevice.NET.Android
                 return;
             }
 
-            base.ConnectToDeviceNative(dev, cToken);
+            await base.ConnectToDeviceNative(dev, cToken);
         }
 
-        public override void StartDiscoverDevices(CancellationToken cToken = default)
+        public override async Task DiscoverDevices(CancellationToken cToken = default)
         {
             try
             {
@@ -105,7 +105,7 @@ namespace ConnectedDevice.NET.Android
                 return;
             }
 
-            base.StartDiscoverDevices(cToken);
+            await base.DiscoverDevices(cToken);
         }
 
         public override AdapterState GetAdapterState()

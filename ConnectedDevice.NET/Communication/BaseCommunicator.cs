@@ -41,7 +41,6 @@ namespace ConnectedDevice.NET.Communication
     public abstract class BaseCommunicator
     {
         public ConnectionType ConnectionType { get; protected set; }
-        public ConnectionState ConnectionState { get; protected set; }
         public RemoteDevice? ConnectedDevice { get; protected set; }
 
         protected IMessageParser? ConnectedDeviceParser { get; set; }
@@ -55,21 +54,21 @@ namespace ConnectedDevice.NET.Communication
             this.ConnectionType = type;
             this.Params = p;
             this.PartialReceivedData = new List<byte>();
-            this.ConnectionState = ConnectionState.DISCONNECTED;
         }
 
         public abstract AdapterState GetAdapterState();
-        public abstract void StartDiscoverDevices(CancellationToken cToken = default);
+        public abstract ConnectionState GetConnectionState();
+        public abstract Task DiscoverDevices(CancellationToken cToken = default);
 
-        public void ConnectToDevice(RemoteDevice dev, IMessageParser parser, CancellationToken cToken = default)
+        public async Task ConnectToDevice(RemoteDevice dev, IMessageParser parser, CancellationToken cToken = default)
         {
             ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Start connecting to '{0}'...", dev.ToString());
             this.ConnectedDeviceParser = parser;
-            this.ConnectToDeviceNative(dev, cToken);
+            await this.ConnectToDeviceNative(dev, cToken);
         }
-        protected abstract void ConnectToDeviceNative(RemoteDevice dev, CancellationToken cToken = default);
+        protected abstract Task ConnectToDeviceNative(RemoteDevice dev, CancellationToken cToken = default);
 
-        public void DisconnectFromDevice()
+        public async Task DisconnectFromDevice()
         {
             if (this.ConnectedDevice == null)
             {
@@ -78,28 +77,32 @@ namespace ConnectedDevice.NET.Communication
             }
 
             ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Start disconnecting from '{0}'...", this.ConnectedDevice.ToString());
-            this.DisconnectFromDeviceNative();
+            await this.DisconnectFromDeviceNative();
         }
-        protected abstract void DisconnectFromDeviceNative(Exception? e = null);
+        protected abstract Task DisconnectFromDeviceNative(Exception? e = null);
 
-        public virtual async Task SendData(ClientMessage message)
+        public virtual async Task<bool> SendData(ClientMessage message)
         {
             ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Sending data of type '{0}'...", message.GetType().ToString());
-            await Task.Run(() =>
+            MessageSentEventArgs args = null;
+            try
             {
-                try
-                {
-                    this.SendDataNative(message);
-                    return Task.FromResult(true);
-                }
-                catch (Exception e)
-                {
-                    ConnectedDeviceManager.PrintLog(LogLevel.Error, "Error sending data: {0}", e.Message);
-                    return Task.FromException(e);
-                }
-            });
+                await this.SendDataNative(message);
+                args = new MessageSentEventArgs(this, message);
+            }
+            catch (Exception e)
+            {
+                ConnectedDeviceManager.PrintLog(LogLevel.Error, "Error sending data: {0}", e.Message);
+                args = new MessageSentEventArgs(this, message, new MessageSentException("Error sending data", e));
+            }
+            finally
+            {
+                this.RaiseMessageSentEvent(args);
+            }
+
+            return args.Error != null;
         }
-        protected abstract void SendDataNative(ClientMessage message);
+        protected abstract Task SendDataNative(ClientMessage message);
 
         protected void HandleReceivedData(string data)
         {
@@ -186,6 +189,12 @@ namespace ConnectedDevice.NET.Communication
         {
             if (args == null) throw new ArgumentNullException("args");
             ConnectedDeviceManager.RaiseEvent(ConnectedDeviceManager._messageReceived, this, args);
+        }
+
+        protected void RaiseMessageSentEvent(MessageSentEventArgs args)
+        {
+            if (args == null) throw new ArgumentNullException("args");
+            ConnectedDeviceManager.RaiseEvent(ConnectedDeviceManager._messageSent, this, args);
         }
 
         protected void RaiseAdapterStateChangedEvent(AdapterStateChangedEventArgs args)

@@ -74,7 +74,6 @@ namespace ConnectedDevice.NET
             }
         }
 
-
         internal static EventHandler<MessageReceivedEventArgs> _messageReceived;
         public static event EventHandler<MessageReceivedEventArgs> MessageReceived
         {
@@ -89,7 +88,22 @@ namespace ConnectedDevice.NET
                 _messageReceived -= value;
             }
         }
-        
+
+        internal static EventHandler<MessageSentEventArgs> _messageSent;
+        public static event EventHandler<MessageSentEventArgs> MessageSent
+        {
+            add
+            {
+                _messageSent -= value;
+                _messageSent += value;
+            }
+
+            remove
+            {
+                _messageSent -= value;
+            }
+        }
+
         internal static void RaiseEvent<T>(EventHandler<T> handler, BaseCommunicator source, T args) where T : EventArgs
         {
             handler?.Invoke(source, args);
@@ -162,9 +176,21 @@ namespace ConnectedDevice.NET
     public class MessageReceivedEventArgs : BaseEventArgs
     {
         public ServerMessage Message;
-        public ProtocolException? Error;
+        public Exception? Error;
 
-        public MessageReceivedEventArgs(BaseCommunicator s, ServerMessage m, ProtocolException? e = null) : base(s)
+        public MessageReceivedEventArgs(BaseCommunicator s, ServerMessage m, Exception? e = null) : base(s)
+        {
+            this.Message = m;
+            this.Error = e;
+        }
+    }
+
+    public class MessageSentEventArgs : BaseEventArgs
+    {
+        public ClientMessage Message;
+        public Exception? Error;
+
+        public MessageSentEventArgs(BaseCommunicator s, ClientMessage m, Exception? e = null) : base(s)
         {
             this.Message = m;
             this.Error = e;
