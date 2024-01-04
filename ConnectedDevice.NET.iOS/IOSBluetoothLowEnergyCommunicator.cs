@@ -76,7 +76,7 @@ namespace ConnectedDevice.NET.iOS
             return allowed;
         }
 
-        protected override void ConnectToDeviceNative(RemoteDevice dev, CancellationToken cToken = default)
+        protected override Task ConnectToDeviceNative(RemoteDevice dev, CancellationToken cToken = default)
         {
             try
             {
@@ -86,13 +86,12 @@ namespace ConnectedDevice.NET.iOS
             {
                 var args = new ConnectionChangedEventArgs(this, ConnectionState.DISCONNECTED, e);
                 this.RaiseConnectionChangedEvent(args);
-                return;
             }
 
-            base.ConnectToDeviceNative(dev, cToken);
+            return base.ConnectToDeviceNative(dev, cToken);
         }
 
-        public override void StartDiscoverDevices(CancellationToken cToken = default)
+        public override Task DiscoverDevices(CancellationToken cToken = default)
         {
             try
             {
@@ -102,10 +101,9 @@ namespace ConnectedDevice.NET.iOS
             {
                 var args = new DiscoverDevicesFinishedEventArgs(this, e);
                 this.RaiseDiscoverDevicesFinishedEvent(args);
-                return;
             }
 
-            base.StartDiscoverDevices(cToken);
+            return base.DiscoverDevices(cToken);
         }
 
         public override AdapterState GetAdapterState()
