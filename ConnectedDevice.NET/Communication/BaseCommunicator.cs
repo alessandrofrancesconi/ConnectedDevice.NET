@@ -4,6 +4,7 @@ using ConnectedDevice.NET.Models;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
@@ -46,6 +47,7 @@ namespace ConnectedDevice.NET.Communication
         protected IMessageParser? ConnectedDeviceParser { get; set; }
 
         private List<byte> PartialReceivedData;
+        private readonly object receivedDataLock = new object();
 
         private BaseCommunicatorParams Params;
 
@@ -117,37 +119,41 @@ namespace ConnectedDevice.NET.Communication
                 ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Received data: '{0}'", utf8);
             }
 
-            if (this.Params.MessageTerminator?.Length > 0)
+            lock (this.receivedDataLock)
             {
-                var startIndex = 0;
-                do
+                if (this.Params.MessageTerminator?.Length > 0)
                 {
-                    var subData = data.Skip(startIndex).ToArray();
-                    var terminatorIndex = Utils.IndexOfBytes(subData, this.Params.MessageTerminator);
-                    if (terminatorIndex > -1)
-                    {
-                        var dataLength = terminatorIndex + this.Params.MessageTerminator.Length;
-                        var sub = new byte[dataLength];
-                        Array.Copy(subData, sub, dataLength);
-                        this.PartialReceivedData.AddRange(sub);
 
-                        this.ParseAndNotifyMessage(this.PartialReceivedData.ToArray());
-                        this.PartialReceivedData.Clear();
-                        startIndex += dataLength;
-                    }
-                    else
+                    var startIndex = 0;
+                    do
                     {
-                        // no terminator found, just append to the partial data without parsing, and exit
-                        this.PartialReceivedData.AddRange(subData.ToArray());
-                        break;
+                        var subData = data.Skip(startIndex).ToArray();
+                        var terminatorIndex = Utils.IndexOfBytes(subData, this.Params.MessageTerminator);
+                        if (terminatorIndex > -1)
+                        {
+                            var dataLength = terminatorIndex + this.Params.MessageTerminator.Length;
+                            var sub = new byte[dataLength];
+                            Array.Copy(subData, sub, dataLength);
+                            this.PartialReceivedData.AddRange(sub);
+
+                            this.ParseAndNotifyMessage(this.PartialReceivedData.ToArray());
+                            this.PartialReceivedData.Clear();
+                            startIndex += dataLength;
+                        }
+                        else
+                        {
+                            // no terminator found, just append to the partial data without parsing, and exit
+                            this.PartialReceivedData.AddRange(subData.ToArray());
+                            break;
+                        }
                     }
+                    while (true);
                 }
-                while (true);
-            }
-            else
-            {
-                // go straigth to the parsing as no terminator is expected 
-                this.ParseAndNotifyMessage(data);
+                else
+                {
+                    // go straigth to the parsing as no terminator is expected 
+                    this.ParseAndNotifyMessage(data);
+                }
             }
         }
 

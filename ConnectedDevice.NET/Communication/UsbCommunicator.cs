@@ -19,7 +19,7 @@ namespace ConnectedDevice.NET.Communication
         {
         }
 
-        protected override async Task ConnectToDeviceNative(RemoteDevice dev, CancellationToken cToken = default)
+        protected override Task ConnectToDeviceNative(RemoteDevice dev, CancellationToken cToken = default)
         {
             throw new NotImplementedException();
         }
@@ -29,7 +29,7 @@ namespace ConnectedDevice.NET.Communication
             return AdapterState.ON;
         }
 
-        public override async Task DiscoverDevices(CancellationToken cToken = default)
+        public override Task DiscoverDevices(CancellationToken cToken = default)
         {
             throw new NotImplementedException();
         }
