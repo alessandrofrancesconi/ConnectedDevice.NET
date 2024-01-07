@@ -7,8 +7,23 @@
     <SupportedOSPlatformVersion>14.0</SupportedOSPlatformVersion>
   </PropertyGroup>
 
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <CreatePackage>false</CreatePackage>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <CreatePackage>false</CreatePackage>
+    <CodesignExtraArgs></CodesignExtraArgs>
+    <DeviceSpecificBuild></DeviceSpecificBuild>
+    <MtouchDebug>false</MtouchDebug>
+    <_BundlerDebug></_BundlerDebug>
+    <MtouchExtraArgs></MtouchExtraArgs>
+    <MtouchVerbosity></MtouchVerbosity>
+    <CodesignResourceRules></CodesignResourceRules>
+  </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\ConnectedDevice.NET\ConnectedDevice.NET.csproj" />
+    <ProjectReference Include="..\ConnectedDevice.NET\ConnectedDevice.NET.csproj">
+      <ReferenceSourceTarget></ReferenceSourceTarget>
+    </ProjectReference>
   </ItemGroup>
 
 </Project>

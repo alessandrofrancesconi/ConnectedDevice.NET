@@ -12,7 +12,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\ConnectedDevice.NET\ConnectedDevice.NET.csproj" />
+    <ProjectReference Include="..\ConnectedDevice.NET\ConnectedDevice.NET.csproj">
+      <ReferenceSourceTarget></ReferenceSourceTarget>
+    </ProjectReference>
   </ItemGroup>
 
 </Project>
