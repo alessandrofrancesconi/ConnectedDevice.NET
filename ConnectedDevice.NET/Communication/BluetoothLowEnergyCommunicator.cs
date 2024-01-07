@@ -12,6 +12,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http.Headers;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace ConnectedDevice.NET.Communication
@@ -48,6 +49,7 @@ namespace ConnectedDevice.NET.Communication
         
         private IDevice ConnectedDeviceNative;
         private ICharacteristic WriteCharacteristic;
+        private List<ICharacteristic> ReadCharacteristics;
 
         private List<RemoteDevice> FoundDevices;
 
@@ -62,6 +64,8 @@ namespace ConnectedDevice.NET.Communication
             this.Ble.Adapter.DeviceDiscovered += Adapter_DeviceDiscovered;
             this.Ble.Adapter.DeviceConnectionError += Adapter_DeviceConnectionLost;
             this.Ble.Adapter.DeviceConnectionLost += Adapter_DeviceConnectionLost;
+
+            this.ReadCharacteristics = new List<ICharacteristic>();
 
             this.FoundDevices = new List<RemoteDevice>();
 
@@ -166,8 +170,9 @@ namespace ConnectedDevice.NET.Communication
             try
             {
                 this.ConnectedDeviceNative = await this.Ble.Adapter.ConnectToKnownDeviceAsync(new Guid(dev.Address), this.Params.ConnectParameters, cToken);
-                ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Connected to {0}. Setting RX/TX services...", dev.Address);
-
+                this.ConnectedDevice = dev; 
+                ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Connected to {0}. Setting RX/TX services...", this.ConnectedDevice.Address);
+                
                 var services = await this.ConnectedDeviceNative.GetServicesAsync(cToken);
                 ICharacteristic? writeChar = null, readChar = null;
                 bool readCharFound = (this.Params.ReadCharacteristicGuid == null);
@@ -189,6 +194,7 @@ namespace ConnectedDevice.NET.Communication
                         readChar = await service.GetCharacteristicAsync((Guid)this.Params.ReadCharacteristicGuid);
                         if (readChar != null)
                         {
+                            this.ReadCharacteristics.Add(readChar);
                             readChar.ValueUpdated += ReadCharacteristic_ValueUpdated;
                             _ = readChar.StartUpdatesAsync();
                             readCharFound = true;
@@ -202,8 +208,7 @@ namespace ConnectedDevice.NET.Communication
                 if (!writeCharFound) throw new Exception("Cannot find needed write characteristic " + this.Params.WriteCharacteristicGuid.ToString());
                 if (!readCharFound) throw new Exception("Cannot find needed read characteristic " + this.Params.ReadCharacteristicGuid.ToString());
 
-                ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Connection to '{0}' completed", dev.ToString());
-                this.ConnectedDevice = dev;
+                ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Connection to '{0}' completed", this.ConnectedDevice.ToString());
                 var args = new ConnectionChangedEventArgs(this, ConnectionState.CONNECTED, null);
                 this.RaiseConnectionChangedEvent(args);
             }
@@ -221,7 +226,28 @@ namespace ConnectedDevice.NET.Communication
 
         protected override async Task DisconnectFromDeviceNative(Exception? e = null)
         {
-            if (this.ConnectedDeviceNative != null) await this.Ble.Adapter.DisconnectDeviceAsync(this.ConnectedDeviceNative);
+            if (this.ConnectedDeviceNative != null)
+            {
+                // stop listening from read characteristics
+                foreach (var readChar in this.ReadCharacteristics)
+                {
+                    try
+                    {
+                        await readChar.StopUpdatesAsync();
+                    }
+                    catch (Exception readEx)
+                    {
+                        ConnectedDeviceManager.PrintLog(LogLevel.Warning, "Cannot stop listening to Characteristic '{0}' while disconnecting: {1}", readChar.Id, readEx.Message);
+                    }
+                }
+                this.ReadCharacteristics.Clear();
+
+                string name = this.ConnectedDeviceNative.Name;
+                await this.Ble.Adapter.DisconnectDeviceAsync(this.ConnectedDeviceNative);
+                ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Disconnection from '{0}' completed", name);
+                this.ConnectedDeviceNative = null;
+            }
+
             this.ConnectedDevice = null;
 
             var args = new ConnectionChangedEventArgs(this, ConnectionState.DISCONNECTED, e);
