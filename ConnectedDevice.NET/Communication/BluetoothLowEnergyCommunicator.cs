@@ -38,6 +38,7 @@ namespace ConnectedDevice.NET.Communication
         public ScanFilterOptions? ScanFilterOptions { get; set; } = default;
         public Func<RemoteDevice, bool>? DeviceFilter { get; set; } = null;
         public ConnectParameters ConnectParameters { get; set; } = default;
+        public int ConnectTimeout { get; set; } = 5000;
 
         public Guid? WriteCharacteristicGuid { get; set; } = new Guid("0000ffe1-0000-1000-8000-00805f9b34fb");
         public Guid? ReadCharacteristicGuid { get; set; } = new Guid("0000ffe1-0000-1000-8000-00805f9b34fb");
@@ -169,11 +170,15 @@ namespace ConnectedDevice.NET.Communication
         {
             try
             {
-                this.ConnectedDeviceNative = await this.Ble.Adapter.ConnectToKnownDeviceAsync(new Guid(dev.Address), this.Params.ConnectParameters, cToken);
+                CancellationTokenSource localToken = new CancellationTokenSource();
+                CancellationTokenSource mergedTokens = CancellationTokenSource.CreateLinkedTokenSource(localToken.Token, cToken);
+                if (this.Params.ConnectTimeout > 0) localToken.CancelAfter(this.Params.ConnectTimeout);
+
+                this.ConnectedDeviceNative = await this.Ble.Adapter.ConnectToKnownDeviceAsync(new Guid(dev.Address), this.Params.ConnectParameters, mergedTokens.Token);
                 this.ConnectedDevice = dev; 
                 ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Connected to {0}. Setting RX/TX services...", this.ConnectedDevice.Address);
                 
-                var services = await this.ConnectedDeviceNative.GetServicesAsync(cToken);
+                var services = await this.ConnectedDeviceNative.GetServicesAsync(mergedTokens.Token);
                 ICharacteristic? writeChar = null, readChar = null;
                 bool readCharFound = (this.Params.ReadCharacteristicGuid == null);
                 bool writeCharFound = (this.Params.WriteCharacteristicGuid == null);
