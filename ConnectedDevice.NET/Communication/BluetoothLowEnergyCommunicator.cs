@@ -76,7 +76,7 @@ namespace ConnectedDevice.NET.Communication
         private void Adapter_DeviceConnectionLost(object? sender, DeviceErrorEventArgs e)
         {
             ConnectedDeviceManager.PrintLog(LogLevel.Error, "Device connection lost. {0}", e.ToString());
-            var exc = new ConnectionLostException(e.ErrorMessage);
+            var exc = new NotConnectedException(e.ErrorMessage);
             this.DisconnectFromDeviceNative(exc);
         }
 

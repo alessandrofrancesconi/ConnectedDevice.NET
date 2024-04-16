@@ -17,7 +17,9 @@ namespace ConnectedDevice.NET
 
     public static partial class ConnectedDeviceManager
     {
-        private static Dictionary<ConnectionType, BaseCommunicator> Communicators = new Dictionary<ConnectionType, BaseCommunicator>();
+        private static Dictionary<ConnectionType, BaseCommunicator> AvailableCommunicators = new Dictionary<ConnectionType, BaseCommunicator>();
+        private static BaseCommunicator? CurrentCommunicator;
+
         internal static ConnectedDeviceManagerParams Params = new ConnectedDeviceManagerParams();
         internal static bool Initialized = false;
 
@@ -33,7 +35,7 @@ namespace ConnectedDevice.NET
             if (Initialized == false) 
                 throw new InvalidOperationException("You must call Initialize() before using this method");
 
-            Communicators[type] = comm;
+            AvailableCommunicators[type] = comm;
             return comm;
         }
 
@@ -42,15 +44,31 @@ namespace ConnectedDevice.NET
             if (Initialized == false) 
                 throw new InvalidOperationException("You must call Initialize() before using this method");
 
-            if (!Communicators.ContainsKey(type) || Communicators[type] == null)
+            if (!AvailableCommunicators.ContainsKey(type) || AvailableCommunicators[type] == null)
                 throw new ArgumentException("Communicator of type '{0}' does not exist", type.ToString());
 
-            return Communicators[type];
+            return AvailableCommunicators[type];
+        }
+
+        public static BaseCommunicator GetCurrentCommunicator()
+        {
+            return CurrentCommunicator;
+        }
+
+        public static BaseCommunicator SetCurrentCommunicator(ConnectionType type)
+        {
+            CurrentCommunicator = GetCommunicator(type);
+            return CurrentCommunicator;
         }
 
         public static void PrintLog(LogLevel level, string message, params object?[] args)
         {
             Params.Logger?.Log(level, "[ConnectedDevice.NET] " + message, args);
+        }
+
+        public static RemoteDevice? GetConnectedDevice()
+        {
+            return CurrentCommunicator?.ConnectedDevice;
         }
 
         public static RemoteDevice? GetConnectedDevice(ConnectionType type)

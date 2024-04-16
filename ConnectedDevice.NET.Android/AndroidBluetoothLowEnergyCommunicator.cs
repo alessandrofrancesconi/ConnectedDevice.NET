@@ -11,6 +11,7 @@ using ConnectedDevice.NET.Communication;
 using ConnectedDevice.NET.Exceptions;
 using ConnectedDevice.NET.Models;
 using Microsoft.Extensions.Logging;
+using Plugin.BLE;
 using Plugin.BLE.Abstractions.Contracts;
 using static Android.Provider.CallLog;
 
@@ -31,7 +32,7 @@ namespace ConnectedDevice.NET.Android
 
         private new AndroidBluetoothLowEnergyCommunicatorParams Params = default;
 
-        public AndroidBluetoothLowEnergyCommunicator(IBluetoothLE ble, AndroidBluetoothLowEnergyCommunicatorParams p = default) : base(ble, p)
+        public AndroidBluetoothLowEnergyCommunicator(AndroidBluetoothLowEnergyCommunicatorParams p = default) : base(CrossBluetoothLE.Current, p)
         {
             this.Params = p;
         }

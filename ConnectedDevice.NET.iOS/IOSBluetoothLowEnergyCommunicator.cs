@@ -4,6 +4,7 @@ using ConnectedDevice.NET.Models;
 using CoreBluetooth;
 using CoreFoundation;
 using Microsoft.Extensions.Logging;
+using Plugin.BLE;
 using Plugin.BLE.Abstractions.Contracts;
 using System;
 using System.Collections.Generic;
@@ -27,7 +28,7 @@ namespace ConnectedDevice.NET.iOS
 
         private new IOSBluetoothLowEnergyCommunicatorParams Params = default;
 
-        public IOSBluetoothLowEnergyCommunicator(IBluetoothLE ble, IOSBluetoothLowEnergyCommunicatorParams p = default) : base(ble, p)
+        public IOSBluetoothLowEnergyCommunicator(IOSBluetoothLowEnergyCommunicatorParams p = default) : base(CrossBluetoothLE.Current, p)
         {
             this.Params = p;
 

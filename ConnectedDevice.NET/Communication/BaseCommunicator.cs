@@ -85,7 +85,12 @@ namespace ConnectedDevice.NET.Communication
 
         public virtual async Task<bool> SendData(ClientMessage message)
         {
-            ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Sending data of type '{0}'...", message.GetType().ToString());
+            var valueStr = string.Empty;
+            foreach (var d in message.Data)
+            {
+                valueStr += (d) + "[" + Convert.ToChar(d) + "]";
+            }
+            ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Sending message of type '{0}' with data '{1}'", message.GetType().ToString(), valueStr);
             MessageSentEventArgs args = null;
             try
             {

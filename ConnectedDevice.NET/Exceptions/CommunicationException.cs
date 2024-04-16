@@ -15,13 +15,13 @@ public class MessageSentException : Exception
     }
 }
 
-public class ConnectionLostException : Exception
+public class NotConnectedException : Exception
 {
-    public ConnectionLostException(string message) : base(message, null)
+    public NotConnectedException(string message) : base(message, null)
     {
     }
 
-    public ConnectionLostException(string message, Exception inner) : base(message, inner)
+    public NotConnectedException(string message, Exception inner) : base(message, inner)
     {
     }
 }
