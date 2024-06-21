@@ -40,8 +40,8 @@ namespace ConnectedDevice.NET.Communication
         public ConnectParameters ConnectParameters { get; set; } = default;
         public int ConnectTimeout { get; set; } = 5000;
 
-        public Guid? WriteCharacteristicGuid { get; set; } = new Guid("0000ffe1-0000-1000-8000-00805f9b34fb");
-        public Guid? ReadCharacteristicGuid { get; set; } = new Guid("0000ffe1-0000-1000-8000-00805f9b34fb");
+        public List<Guid> WriteCharacteristicGuids { get; set; } = new List<Guid>() { new Guid("0000ffe1-0000-1000-8000-00805f9b34fb") };
+        public List<Guid> ReadCharacteristicGuids { get; set; } = new List<Guid>() { new Guid("0000ffe1-0000-1000-8000-00805f9b34fb") };
     }
 
     public abstract class BluetoothLowEnergyCommunicator : BaseCommunicator
@@ -180,29 +180,38 @@ namespace ConnectedDevice.NET.Communication
                 
                 var services = await this.ConnectedDeviceNative.GetServicesAsync(mergedTokens.Token);
                 ICharacteristic? writeChar = null, readChar = null;
-                bool readCharFound = (this.Params.ReadCharacteristicGuid == null);
-                bool writeCharFound = (this.Params.WriteCharacteristicGuid == null);
+                bool readCharFound = (this.Params.ReadCharacteristicGuids.Count == 0);
+                bool writeCharFound = (this.Params.WriteCharacteristicGuids.Count == 0);
                 foreach (var service in services)
                 {
                     if (!writeCharFound)
                     {
-                        writeChar = await service.GetCharacteristicAsync((Guid)this.Params.WriteCharacteristicGuid);
-                        if (writeChar != null)
+                        var a = await service.GetCharacteristicsAsync();
+                        foreach (var wch in this.Params.WriteCharacteristicGuids)
                         {
-                            this.WriteCharacteristic = writeChar;
-                            writeCharFound = true;
+                            writeChar = await service.GetCharacteristicAsync(wch);
+                            if (writeChar != null)
+                            {
+                                this.WriteCharacteristic = writeChar;
+                                writeCharFound = true;
+                                break;
+                            }
                         }
                     }
 
                     if (!readCharFound)
                     {
-                        readChar = await service.GetCharacteristicAsync((Guid)this.Params.ReadCharacteristicGuid);
-                        if (readChar != null)
+                        foreach (var rch in this.Params.ReadCharacteristicGuids)
                         {
-                            this.ReadCharacteristics.Add(readChar);
-                            readChar.ValueUpdated += ReadCharacteristic_ValueUpdated;
-                            _ = readChar.StartUpdatesAsync();
-                            readCharFound = true;
+                            readChar = await service.GetCharacteristicAsync(rch);
+                            if (readChar != null)
+                            {
+                                this.ReadCharacteristics.Add(readChar);
+                                readChar.ValueUpdated += ReadCharacteristic_ValueUpdated;
+                                _ = readChar.StartUpdatesAsync();
+                                readCharFound = true;
+                                break;
+                            }
                         }
                     }
 
@@ -210,8 +219,8 @@ namespace ConnectedDevice.NET.Communication
                         break;
                 }
 
-                if (!writeCharFound) throw new Exception("Cannot find needed write characteristic " + this.Params.WriteCharacteristicGuid.ToString());
-                if (!readCharFound) throw new Exception("Cannot find needed read characteristic " + this.Params.ReadCharacteristicGuid.ToString());
+                if (!writeCharFound) throw new Exception("Cannot find needed write characteristic");
+                if (!readCharFound) throw new Exception("Cannot find needed read characteristic");
 
                 ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Connection to '{0}' completed", this.ConnectedDevice.ToString());
                 var args = new ConnectionChangedEventArgs(this, ConnectionState.CONNECTED, null);
