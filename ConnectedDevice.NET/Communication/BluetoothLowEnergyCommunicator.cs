@@ -49,8 +49,8 @@ namespace ConnectedDevice.NET.Communication
         private IBluetoothLE Ble;
         
         private IDevice ConnectedDeviceNative;
-        private ICharacteristic WriteCharacteristic;
-        private List<ICharacteristic> ReadCharacteristics;
+        protected ICharacteristic WriteCharacteristic;
+        protected List<ICharacteristic> ReadCharacteristics;
 
         private List<RemoteDevice> FoundDevices;
 
@@ -75,9 +75,9 @@ namespace ConnectedDevice.NET.Communication
 
         private void Adapter_DeviceConnectionLost(object? sender, DeviceErrorEventArgs e)
         {
-            ConnectedDeviceManager.PrintLog(LogLevel.Error, "Device connection lost. {0}", e.ToString());
+            ConnectedDeviceManager.PrintLog(LogLevel.Error, "Device connection lost. {0}", e.ErrorMessage);
             var exc = new NotConnectedException(e.ErrorMessage);
-            this.DisconnectFromDeviceNative(exc);
+            _ = this.DisconnectFromDeviceNative(exc);
         }
 
         private void Adapter_DeviceDiscovered(object? sender, DeviceEventArgs e)
@@ -229,7 +229,7 @@ namespace ConnectedDevice.NET.Communication
             catch (Exception e)
             {
                 ConnectedDeviceManager.PrintLog(LogLevel.Error, "Error while connecting: " + e.Message);
-                this.DisconnectFromDeviceNative(e);
+                _ = this.DisconnectFromDeviceNative(e);
             }
         }
 

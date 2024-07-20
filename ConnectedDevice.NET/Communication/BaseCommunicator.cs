@@ -83,7 +83,7 @@ namespace ConnectedDevice.NET.Communication
         }
         protected abstract Task DisconnectFromDeviceNative(Exception? e = null);
 
-        public virtual async Task<bool> SendData(ClientMessage message)
+        public async Task<bool> SendData(ClientMessage message)
         {
             var valueStr = string.Empty;
             foreach (var d in message.Data)

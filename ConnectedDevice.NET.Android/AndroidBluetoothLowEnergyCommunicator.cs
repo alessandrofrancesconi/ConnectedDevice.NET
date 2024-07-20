@@ -3,17 +3,15 @@ using Android.Bluetooth;
 using Android.Content;
 using Android.Content.PM;
 using Android.Locations;
-using Android.OS;
 using Android.Provider;
 using AndroidX.Core.App;
 using AndroidX.Core.Content;
 using ConnectedDevice.NET.Communication;
+using ConnectedDevice.NET.Communication.Protocol;
 using ConnectedDevice.NET.Exceptions;
 using ConnectedDevice.NET.Models;
 using Microsoft.Extensions.Logging;
 using Plugin.BLE;
-using Plugin.BLE.Abstractions.Contracts;
-using static Android.Provider.CallLog;
 
 namespace ConnectedDevice.NET.Android
 {
@@ -22,6 +20,7 @@ namespace ConnectedDevice.NET.Android
         public bool RequestPermission = true;
         public bool CheckLocationSettings = true;
         public Func<Activity> GetCurrentActivityMethod = null;
+        public Action<Action> RunOnUIThreadMethod = null;
     }
 
     public class AndroidBluetoothLowEnergyCommunicator : BluetoothLowEnergyCommunicator
@@ -142,6 +141,22 @@ namespace ConnectedDevice.NET.Android
                 }
             }
             return true;
+        }
+
+        protected override Task SendDataNative(ClientMessage message)
+        {
+            if (this.WriteCharacteristic == null) throw new NullReferenceException("Write characteristic is not set. Cannot send data.");
+
+            var writeAction = new Action(async () =>
+            {
+                var res = await this.WriteCharacteristic.WriteAsync(message.Data);
+                if (res != 0) throw new Exception("Data send error");
+            });
+
+            // if a method to run the Action on the UI thread has been given, use it
+            if (this.Params.RunOnUIThreadMethod != null) this.Params.RunOnUIThreadMethod.Invoke(writeAction);
+            else writeAction.Invoke();
+            return Task.CompletedTask;
         }
     }
 }
