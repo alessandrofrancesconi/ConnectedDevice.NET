@@ -10,8 +10,10 @@ using ConnectedDevice.NET.Communication;
 using ConnectedDevice.NET.Communication.Protocol;
 using ConnectedDevice.NET.Exceptions;
 using ConnectedDevice.NET.Models;
+using Javax.Crypto;
 using Microsoft.Extensions.Logging;
 using Plugin.BLE;
+using System.Reflection;
 
 namespace ConnectedDevice.NET.Android
 {
@@ -149,14 +151,20 @@ namespace ConnectedDevice.NET.Android
 
             var writeAction = new Action(async () =>
             {
-                var res = await this.WriteCharacteristic.WriteAsync(message.Data);
-                if (res != 0) throw new Exception("Data send error");
+                try
+                {
+                    var res = await this.WriteCharacteristic.WriteAsync(message.Data);
+                    if (res != 0) throw new Exception("Data send error");
+                }
+                catch { }
             });
 
             // if a method to run the Action on the UI thread has been given, use it
             if (this.Params.RunOnUIThreadMethod != null) this.Params.RunOnUIThreadMethod.Invoke(writeAction);
             else writeAction.Invoke();
+
             return Task.CompletedTask;
+
         }
     }
 }

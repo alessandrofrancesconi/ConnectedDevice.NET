@@ -40,8 +40,9 @@ namespace ConnectedDevice.NET.Communication
         public ConnectParameters ConnectParameters { get; set; } = default;
         public int ConnectTimeout { get; set; } = 5000;
 
-        public List<Guid> WriteCharacteristicGuids { get; set; } = new List<Guid>() { new Guid("0000ffe1-0000-1000-8000-00805f9b34fb") };
-        public List<Guid> ReadCharacteristicGuids { get; set; } = new List<Guid>() { new Guid("0000ffe1-0000-1000-8000-00805f9b34fb") };
+        public List<Guid> SupportedServiceGuids { get; set; } = new List<Guid>() { new Guid("0000ffe0-0000-1000-8000-00805f9b34fb") };
+        public List<Guid> SupportedWriteCharacteristicGuids { get; set; } = new List<Guid>() { new Guid("0000ffe1-0000-1000-8000-00805f9b34fb") };
+        public List<Guid> SupportedReadCharacteristicGuids { get; set; } = new List<Guid>() { new Guid("0000ffe1-0000-1000-8000-00805f9b34fb") };
     }
 
     public abstract class BluetoothLowEnergyCommunicator : BaseCommunicator
@@ -177,46 +178,45 @@ namespace ConnectedDevice.NET.Communication
                 this.ConnectedDeviceNative = await this.Ble.Adapter.ConnectToKnownDeviceAsync(new Guid(dev.Address), this.Params.ConnectParameters, mergedTokens.Token);
                 this.ConnectedDevice = dev; 
                 ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Connected to {0}. Setting RX/TX services...", this.ConnectedDevice.Address);
-                
-                var services = await this.ConnectedDeviceNative.GetServicesAsync(mergedTokens.Token);
-                ICharacteristic? writeChar = null, readChar = null;
-                bool readCharFound = (this.Params.ReadCharacteristicGuids.Count == 0);
-                bool writeCharFound = (this.Params.WriteCharacteristicGuids.Count == 0);
-                foreach (var service in services)
+
+                IService? service = null;
+                bool serviceFound = false;
+                foreach (var sId in this.Params.SupportedServiceGuids)
                 {
-                    if (!writeCharFound)
+                    service = await this.ConnectedDeviceNative.GetServiceAsync(sId, mergedTokens.Token);
+                    if (service != null)
                     {
-                        var a = await service.GetCharacteristicsAsync();
-                        foreach (var wch in this.Params.WriteCharacteristicGuids)
-                        {
-                            writeChar = await service.GetCharacteristicAsync(wch);
-                            if (writeChar != null)
-                            {
-                                this.WriteCharacteristic = writeChar;
-                                writeCharFound = true;
-                                break;
-                            }
-                        }
-                    }
-
-                    if (!readCharFound)
-                    {
-                        foreach (var rch in this.Params.ReadCharacteristicGuids)
-                        {
-                            readChar = await service.GetCharacteristicAsync(rch);
-                            if (readChar != null)
-                            {
-                                this.ReadCharacteristics.Add(readChar);
-                                readChar.ValueUpdated += ReadCharacteristic_ValueUpdated;
-                                _ = readChar.StartUpdatesAsync();
-                                readCharFound = true;
-                                break;
-                            }
-                        }
-                    }
-
-                    if (writeCharFound && readCharFound)
+                        serviceFound = true;
                         break;
+                    }
+                }
+
+                if (!serviceFound) throw new Exception("Cannot find needed service");
+
+                ICharacteristic? writeChar = null, readChar = null;
+                bool readCharFound = (this.Params.SupportedReadCharacteristicGuids.Count == 0);
+                bool writeCharFound = (this.Params.SupportedWriteCharacteristicGuids.Count == 0);
+                foreach (var wId in this.Params.SupportedWriteCharacteristicGuids)
+                {
+                    writeChar = await service.GetCharacteristicAsync(wId);
+                    if (writeChar != null && writeChar.CanWrite)
+                    {
+                        this.WriteCharacteristic = writeChar;
+                        writeCharFound = true;
+                        break;
+                    }
+                }
+                foreach (var rId in this.Params.SupportedReadCharacteristicGuids)
+                {
+                    readChar = await service.GetCharacteristicAsync(rId);
+                    if (readChar != null && readChar.CanUpdate)
+                    {
+                        this.ReadCharacteristics.Add(readChar);
+                        readChar.ValueUpdated += ReadCharacteristic_ValueUpdated;
+                        _ = readChar.StartUpdatesAsync();
+                        readCharFound = true;
+                        break;
+                    }
                 }
 
                 if (!writeCharFound) throw new Exception("Cannot find needed write characteristic");
