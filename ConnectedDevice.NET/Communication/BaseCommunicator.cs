@@ -37,6 +37,7 @@ namespace ConnectedDevice.NET.Communication
     public abstract class BaseCommunicatorParams
     {
         public byte[] MessageTerminator { get; set; } = null;
+        public Func<RemoteDevice, bool>? DeviceFilter { get; set; } = null;
     }
 
     public abstract class BaseCommunicator
@@ -49,7 +50,7 @@ namespace ConnectedDevice.NET.Communication
         private List<byte> PartialReceivedData;
         private readonly object receivedDataLock = new object();
 
-        private BaseCommunicatorParams Params;
+        protected BaseCommunicatorParams Params;
 
         public BaseCommunicator(ConnectionType type, BaseCommunicatorParams p = default)
         {
@@ -62,7 +63,7 @@ namespace ConnectedDevice.NET.Communication
         public abstract ConnectionState GetConnectionState();
         public abstract Task DiscoverDevices(CancellationToken cToken = default);
 
-        public async Task ConnectToDevice(RemoteDevice dev, IMessageParser parser, CancellationToken cToken = default)
+        public async Task ConnectToDevice<T>(T dev, IMessageParser parser, CancellationToken cToken = default) where T : RemoteDevice
         {
             ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Start connecting to '{0}'...", dev.ToString());
             this.ConnectedDeviceParser = parser;

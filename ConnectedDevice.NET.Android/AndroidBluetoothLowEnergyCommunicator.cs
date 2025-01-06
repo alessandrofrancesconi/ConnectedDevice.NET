@@ -13,6 +13,7 @@ using ConnectedDevice.NET.Models;
 using Javax.Crypto;
 using Microsoft.Extensions.Logging;
 using Plugin.BLE;
+using Plugin.BLE.Abstractions.Contracts;
 using System.Reflection;
 
 namespace ConnectedDevice.NET.Android
@@ -147,16 +148,28 @@ namespace ConnectedDevice.NET.Android
 
         protected override Task SendDataNative(ClientMessage message)
         {
-            if (this.WriteCharacteristic == null) throw new NullReferenceException("Write characteristic is not set. Cannot send data.");
+            ICharacteristic? characteristic;
+            if (this.WriteCharacteristicToUse != null) characteristic = this.WriteCharacteristicToUse;
+            else characteristic = this.WriteCharacteristics.FirstOrDefault();
+
+            if (characteristic == null) throw new NullReferenceException("Write characteristic is not set. Cannot send data.");
 
             var writeAction = new Action(async () =>
             {
                 try
                 {
-                    var res = await this.WriteCharacteristic.WriteAsync(message.Data);
-                    if (res != 0) throw new Exception("Data send error");
+                    var res = await characteristic.WriteAsync(message.Data);
+                    if (res != 0) throw new Exception("Bluetooth sent error with code " + res);
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    ConnectedDeviceManager.PrintLog(LogLevel.Error, "Error sending data: '{0}'", ex.Message);
+                }
+                finally
+                {
+                    // reset WriteChar to use
+                    this.WriteCharacteristicToUse = null;
+                }
             });
 
             // if a method to run the Action on the UI thread has been given, use it
@@ -164,7 +177,6 @@ namespace ConnectedDevice.NET.Android
             else writeAction.Invoke();
 
             return Task.CompletedTask;
-
         }
     }
 }

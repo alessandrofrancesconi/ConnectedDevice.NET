@@ -11,9 +11,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http.Headers;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using System.Xml.Linq;
+using static ConnectedDevice.NET.Communication.BluetoothLowEnergyCommunicatorParams;
 
 namespace ConnectedDevice.NET.Communication
 {
@@ -24,6 +27,7 @@ namespace ConnectedDevice.NET.Communication
             STICKY,
             AGRESSIVE
         };
+        
         public enum BtScanMode
         {
             PASSIVE,
@@ -32,17 +36,54 @@ namespace ConnectedDevice.NET.Communication
             LOW_LATENCY
         };
 
+        public struct ServiceAndCharacteristics
+        {
+            public Guid ServiceGuid;
+            public Guid? WriteCharacteristicGuid;
+            public Guid? ReadCharacteristicGuid;
+            public Guid? NotifyCharacteristicGuid;
+
+            public ServiceAndCharacteristics(Guid service, Guid? read, Guid? notify, Guid? write)
+            {
+                ServiceGuid = service;
+                ReadCharacteristicGuid = read;
+                NotifyCharacteristicGuid = notify;
+                WriteCharacteristicGuid = write;
+            }
+        }
+
         public BtScanMode ScanMode { get; set; } = BtScanMode.BALANCED;
         public BtScanMatchMode ScanMatchMode { get; set; } = BtScanMatchMode.STICKY;
         public int ScanTimeout { get; set; } = 3000;
-        public ScanFilterOptions? ScanFilterOptions { get; set; } = default;
-        public Func<RemoteDevice, bool>? DeviceFilter { get; set; } = null;
-        public ConnectParameters ConnectParameters { get; set; } = default;
+        public ScanFilterOptions? ScanFilterOptions { get; set; } = new ScanFilterOptions();
+        public ConnectParameters ConnectParameters { get; set; } = new ConnectParameters();
         public int ConnectTimeout { get; set; } = 5000;
 
-        public List<Guid> SupportedServiceGuids { get; set; } = new List<Guid>() { new Guid("0000ffe0-0000-1000-8000-00805f9b34fb") };
-        public List<Guid> SupportedWriteCharacteristicGuids { get; set; } = new List<Guid>() { new Guid("0000ffe1-0000-1000-8000-00805f9b34fb") };
-        public List<Guid> SupportedReadCharacteristicGuids { get; set; } = new List<Guid>() { new Guid("0000ffe1-0000-1000-8000-00805f9b34fb") };
+        public List<ServiceAndCharacteristics> SupportedCharacteristics = new List<ServiceAndCharacteristics>()
+        {
+            // Nordic nRF
+            new ServiceAndCharacteristics(
+                new Guid("6e400001-b5a3-f393-e0a9-e50e24dcca9e"),
+                new Guid("6e400003-b5a3-f393-e0a9-e50e24dcca9e"),
+                new Guid("6e400003-b5a3-f393-e0a9-e50e24dcca9e"),
+                new Guid("6e400002-b5a3-f393-e0a9-e50e24dcca9e")),
+
+            // TI CC245X
+            new ServiceAndCharacteristics(
+                new Guid("0000ffe0-0000-1000-8000-00805f9b34fb"),
+                new Guid("0000ffe1-0000-1000-8000-00805f9b34fb"),
+                new Guid("0000ffe1-0000-1000-8000-00805f9b34fb"),
+                new Guid("0000ffe1-0000-1000-8000-00805f9b34fb")),
+
+            // Microchip RN4870/71, BM70/71
+            new ServiceAndCharacteristics(
+                new Guid("49535343-fe7d-4ae5-8fa9-9fafd205e455"),
+                new Guid("49535343-1e4d-4bd9-ba61-23c647249616"),
+                new Guid("49535343-1e4d-4bd9-ba61-23c647249616"),
+                new Guid("49535343-8841-43f4-a8d4-ecbe34729bb3"))
+        };
+
+        public static readonly BluetoothLowEnergyCommunicatorParams Default = new() {};
     }
 
     public abstract class BluetoothLowEnergyCommunicator : BaseCommunicator
@@ -50,7 +91,9 @@ namespace ConnectedDevice.NET.Communication
         private IBluetoothLE Ble;
         
         private IDevice ConnectedDeviceNative;
-        protected ICharacteristic WriteCharacteristic;
+        protected List<ICharacteristic> WriteCharacteristics;
+        protected ICharacteristic? WriteCharacteristicToUse;
+        protected List<ICharacteristic> NotifyCharacteristics;
         protected List<ICharacteristic> ReadCharacteristics;
 
         private List<RemoteDevice> FoundDevices;
@@ -60,6 +103,7 @@ namespace ConnectedDevice.NET.Communication
         public BluetoothLowEnergyCommunicator(IBluetoothLE ble, BluetoothLowEnergyCommunicatorParams p = default) : base(ConnectionType.BLUETOOTH_LE, p)
         {
             if (ble == null) throw new ArgumentNullException(nameof(ble));
+            if (p == default) p = BluetoothLowEnergyCommunicatorParams.Default;
 
             this.Ble = ble;
             this.Ble.StateChanged += Ble_StateChanged;
@@ -67,6 +111,8 @@ namespace ConnectedDevice.NET.Communication
             this.Ble.Adapter.DeviceConnectionError += Adapter_DeviceConnectionLost;
             this.Ble.Adapter.DeviceConnectionLost += Adapter_DeviceConnectionLost;
 
+            this.WriteCharacteristics = new List<ICharacteristic>();
+            this.NotifyCharacteristics = new List<ICharacteristic>();
             this.ReadCharacteristics = new List<ICharacteristic>();
 
             this.FoundDevices = new List<RemoteDevice>();
@@ -83,7 +129,7 @@ namespace ConnectedDevice.NET.Communication
 
         private void Adapter_DeviceDiscovered(object? sender, DeviceEventArgs e)
         {
-            var dev = new RemoteDevice(ConnectionType.BLUETOOTH_LE, e.Device.Name, e.Device.Id.ToString());
+            var dev = new BluetoothLowEnergyDevice(e.Device.Id.ToString(), e.Device.Name);
 
             ConnectedDeviceManager.PrintLog(LogLevel.Information, "Device discovered: {0}", dev);
             var args = new DeviceDiscoveredEventArgs(this, dev);
@@ -148,7 +194,7 @@ namespace ConnectedDevice.NET.Communication
                 {
                     if (Params.DeviceFilter != null)
                     {
-                        var rd = new RemoteDevice(ConnectionType.BLUETOOTH_LE, dev.Name, dev.Id.ToString());
+                        var rd = new BluetoothLowEnergyDevice(dev.Id.ToString(), dev.Name);
                         bool valid = Params.DeviceFilter(rd);
                         if (!valid)
                         {
@@ -176,52 +222,61 @@ namespace ConnectedDevice.NET.Communication
                 if (this.Params.ConnectTimeout > 0) localToken.CancelAfter(this.Params.ConnectTimeout);
 
                 this.ConnectedDeviceNative = await this.Ble.Adapter.ConnectToKnownDeviceAsync(new Guid(dev.Address), this.Params.ConnectParameters, mergedTokens.Token);
-                this.ConnectedDevice = dev; 
-                ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Connected to {0}. Setting RX/TX services...", this.ConnectedDevice.Address);
+                ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Connected to {0}. Setting RX/TX services...", dev.Address);
 
-                IService? service = null;
-                bool serviceFound = false;
-                foreach (var sId in this.Params.SupportedServiceGuids)
+                // for each declared Service, setup the characteristics
+                this.WriteCharacteristics.Clear();
+                this.NotifyCharacteristics.Clear();
+                this.ReadCharacteristics.Clear();
+                foreach (var swr in this.Params.SupportedCharacteristics)
                 {
-                    service = await this.ConnectedDeviceNative.GetServiceAsync(sId, mergedTokens.Token);
+                    var service = await this.ConnectedDeviceNative.GetServiceAsync(swr.ServiceGuid, mergedTokens.Token);
                     if (service != null)
                     {
-                        serviceFound = true;
-                        break;
+                        // service exists, retrieve characteristics
+
+                        // write
+                        if (swr.WriteCharacteristicGuid.HasValue)
+                        {
+                            var write = await service.GetCharacteristicAsync(swr.WriteCharacteristicGuid.Value);
+                            if (write != null && write.CanWrite)
+                            {
+                                this.WriteCharacteristics.Add(write);
+                                ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Registered Write characteristic {0}.", write.Id);
+                            }
+                        }
+
+                        // read
+                        if (swr.ReadCharacteristicGuid.HasValue)
+                        {
+                            var read = await service.GetCharacteristicAsync(swr.ReadCharacteristicGuid.Value);
+                            if (read != null && read.CanRead)
+                            {
+                                this.ReadCharacteristics.Add(read);
+                                ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Registered Read characteristic {0}.", read.Id);
+                            }
+                        }
+
+                        // notify
+                        if (swr.NotifyCharacteristicGuid.HasValue)
+                        {
+                            var notify = await service.GetCharacteristicAsync(swr.NotifyCharacteristicGuid.Value);
+                            if (notify != null && notify.CanUpdate)
+                            {
+                                this.NotifyCharacteristics.Add(notify);
+                                notify.ValueUpdated += NotifyCharacteristic_ValueUpdated;
+                                _ = notify.StartUpdatesAsync();
+                                ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Registered Notify characteristic {0}.", notify.Id);
+                            }
+                        }
                     }
                 }
 
-                if (!serviceFound) throw new Exception("Cannot find needed service");
+                if (this.WriteCharacteristics.Count == 0) ConnectedDeviceManager.PrintLog(LogLevel.Warning, "No suitable Write characteristics have ben found.");
+                if (this.ReadCharacteristics.Count == 0) ConnectedDeviceManager.PrintLog(LogLevel.Warning, "No suitable Read characteristics have ben found.");
+                if (this.NotifyCharacteristics.Count == 0) ConnectedDeviceManager.PrintLog(LogLevel.Warning, "No suitable Notify characteristics have ben found.");
 
-                ICharacteristic? writeChar = null, readChar = null;
-                bool readCharFound = (this.Params.SupportedReadCharacteristicGuids.Count == 0);
-                bool writeCharFound = (this.Params.SupportedWriteCharacteristicGuids.Count == 0);
-                foreach (var wId in this.Params.SupportedWriteCharacteristicGuids)
-                {
-                    writeChar = await service.GetCharacteristicAsync(wId);
-                    if (writeChar != null && writeChar.CanWrite)
-                    {
-                        this.WriteCharacteristic = writeChar;
-                        writeCharFound = true;
-                        break;
-                    }
-                }
-                foreach (var rId in this.Params.SupportedReadCharacteristicGuids)
-                {
-                    readChar = await service.GetCharacteristicAsync(rId);
-                    if (readChar != null && readChar.CanUpdate)
-                    {
-                        this.ReadCharacteristics.Add(readChar);
-                        readChar.ValueUpdated += ReadCharacteristic_ValueUpdated;
-                        _ = readChar.StartUpdatesAsync();
-                        readCharFound = true;
-                        break;
-                    }
-                }
-
-                if (!writeCharFound) throw new Exception("Cannot find needed write characteristic");
-                if (!readCharFound) throw new Exception("Cannot find needed read characteristic");
-
+                this.ConnectedDevice = dev;
                 ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Connection to '{0}' completed", this.ConnectedDevice.ToString());
                 var args = new ConnectionChangedEventArgs(this, ConnectionState.CONNECTED, null);
                 this.RaiseConnectionChangedEvent(args);
@@ -233,7 +288,7 @@ namespace ConnectedDevice.NET.Communication
             }
         }
 
-        private void ReadCharacteristic_ValueUpdated(object? sender, CharacteristicUpdatedEventArgs e)
+        private void NotifyCharacteristic_ValueUpdated(object? sender, CharacteristicUpdatedEventArgs e)
         {
             this.HandleReceivedData(e.Characteristic.Value);
         }
@@ -243,18 +298,20 @@ namespace ConnectedDevice.NET.Communication
             if (this.ConnectedDeviceNative != null)
             {
                 // stop listening from read characteristics
-                foreach (var readChar in this.ReadCharacteristics)
+                foreach (var nChar in this.NotifyCharacteristics)
                 {
                     try
                     {
-                        await readChar.StopUpdatesAsync();
+                        await nChar.StopUpdatesAsync();
                     }
-                    catch (Exception readEx)
+                    catch (Exception nEx)
                     {
-                        ConnectedDeviceManager.PrintLog(LogLevel.Warning, "Cannot stop listening to Characteristic '{0}' while disconnecting: {1}", readChar.Id, readEx.Message);
+                        ConnectedDeviceManager.PrintLog(LogLevel.Warning, "Cannot stop listening to Characteristic '{0}' while disconnecting: {1}", nChar.Id, nEx.Message);
                     }
                 }
+                this.WriteCharacteristics.Clear();
                 this.ReadCharacteristics.Clear();
+                this.NotifyCharacteristics.Clear();
 
                 string name = this.ConnectedDeviceNative.Name;
                 await this.Ble.Adapter.DisconnectDeviceAsync(this.ConnectedDeviceNative);
@@ -268,12 +325,60 @@ namespace ConnectedDevice.NET.Communication
             this.RaiseConnectionChangedEvent(args);
         }
 
+        public async Task<bool> SendData(ClientMessage message, Guid characteristic)
+        {
+            this.WriteCharacteristicToUse = this.WriteCharacteristics.Where(c => c.Id == characteristic).FirstOrDefault();
+            if (this.WriteCharacteristicToUse == null) throw new NullReferenceException("Invalid Write characteristic " + characteristic + ". Cannot send data.");
+            
+            return await this.SendData(message);
+        }
+
         protected override async Task SendDataNative(ClientMessage message)
         {
-            if (this.WriteCharacteristic == null) throw new NullReferenceException("Write characteristic is not set. Cannot send data.");
+            ICharacteristic? characteristic;
+            if (this.WriteCharacteristicToUse != null) characteristic = this.WriteCharacteristicToUse;
+            else characteristic = this.WriteCharacteristics.FirstOrDefault();
 
-            var res = await this.WriteCharacteristic.WriteAsync(message.Data);
-            if (res != 0) throw new Exception("Data send error");
+            if (characteristic == null) throw new NullReferenceException("Write characteristic is not set. Cannot send data.");
+
+            try
+            {
+                var res = await characteristic.WriteAsync(message.Data);
+                if (res != 0) throw new Exception("Bluetooth sent error with code " + res);
+            }
+            catch (Exception ex)
+            {
+                ConnectedDeviceManager.PrintLog(LogLevel.Error, "Error sending data: '{0}'", ex.Message);
+            }
+            finally
+            {
+                // reset WriteChar to use
+                this.WriteCharacteristicToUse = null;
+            }
+        }
+
+        public async Task<(byte[], int)> ReadData(ClientMessage message, Guid? readCharacteristic, CancellationToken token = default)
+        {
+            ICharacteristic? characteristic = null;
+            if (readCharacteristic != null) characteristic = this.ReadCharacteristics.Where(c => c.Id == readCharacteristic).FirstOrDefault();
+            else characteristic = this.ReadCharacteristics.FirstOrDefault();
+
+            if (characteristic == null) throw new NullReferenceException("Read characteristic is not set. Cannot read data.");
+
+            try
+            {
+                return await characteristic.ReadAsync(token);
+            }
+            catch (CharacteristicReadException ex)
+            {
+                ConnectedDeviceManager.PrintLog(LogLevel.Error, "Error reading data: '{0}'", ex.Message);
+                return new(null, ex.HResult) { };
+            }
+            catch (Exception ex)
+            {
+                ConnectedDeviceManager.PrintLog(LogLevel.Error, "Error reading data: '{0}'", ex.Message);
+                return new (null, 0) { };
+            }
         }
 
         public override ConnectionState GetConnectionState()

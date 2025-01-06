@@ -10,9 +10,11 @@ using System.Threading.Tasks;
 
 namespace ConnectedDevice.NET
 {
-    public class ConnectedDeviceManagerParams
+    public struct ConnectedDeviceManagerParams
     {
         public ILogger? Logger { get; set; } = null;
+
+        public ConnectedDeviceManagerParams() { }
     }
 
     public static partial class ConnectedDeviceManager
@@ -45,7 +47,7 @@ namespace ConnectedDevice.NET
                 throw new InvalidOperationException("You must call Initialize() before using this method");
 
             if (!AvailableCommunicators.ContainsKey(type) || AvailableCommunicators[type] == null)
-                throw new ArgumentException("Communicator of type '{0}' does not exist", type.ToString());
+                throw new ArgumentException(string.Format("Communicator of type '{0}' has not been declared", type.ToString()));
 
             return AvailableCommunicators[type];
         }
@@ -69,6 +71,13 @@ namespace ConnectedDevice.NET
         public static RemoteDevice? GetConnectedDevice()
         {
             return CurrentCommunicator?.ConnectedDevice;
+        }
+
+        public static T? GetConnectedDevice<T>() where T : RemoteDevice
+        {
+            var device = CurrentCommunicator?.ConnectedDevice;
+            if (device != null && device is T) return (T)device;
+            else return null;
         }
 
         public static RemoteDevice? GetConnectedDevice(ConnectionType type)
