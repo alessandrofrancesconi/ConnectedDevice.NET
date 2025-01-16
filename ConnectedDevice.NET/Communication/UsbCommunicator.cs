@@ -1,15 +1,7 @@
 ﻿using ConnectedDevice.NET.Communication.Protocol;
 using ConnectedDevice.NET.Models;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Collections.Generic;
 using System.IO.Ports;
-using System.Linq;
-using System.Text;
-using System.Text.RegularExpressions;
-using System.Threading.Tasks;
-using System.Xml.Linq;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace ConnectedDevice.NET.Communication
 {
@@ -22,6 +14,7 @@ namespace ConnectedDevice.NET.Communication
         public int WriteTimeout = 1000;
         public int ReadTimeout = 1000;
         public Handshake Handshake = Handshake.None;
+        public new Func<UsbDevice, bool>? DeviceFilter { get; set; } = null;
 
         public static readonly UsbCommunicatorParams Default = new() { };
     }

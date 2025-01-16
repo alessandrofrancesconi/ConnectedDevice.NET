@@ -20,6 +20,22 @@ using static ConnectedDevice.NET.Communication.BluetoothLowEnergyCommunicatorPar
 
 namespace ConnectedDevice.NET.Communication
 {
+    public struct ServiceAndCharacteristics
+    {
+        public Guid ServiceGuid;
+        public Guid? WriteCharacteristicGuid;
+        public Guid? ReadCharacteristicGuid;
+        public Guid? NotifyCharacteristicGuid;
+
+        public ServiceAndCharacteristics(Guid service, Guid? read, Guid? notify, Guid? write)
+        {
+            ServiceGuid = service;
+            ReadCharacteristicGuid = read;
+            NotifyCharacteristicGuid = notify;
+            WriteCharacteristicGuid = write;
+        }
+    }
+
     public class BluetoothLowEnergyCommunicatorParams : BaseCommunicatorParams
     {
         public enum BtScanMatchMode
@@ -36,35 +52,20 @@ namespace ConnectedDevice.NET.Communication
             LOW_LATENCY
         };
 
-        public struct ServiceAndCharacteristics
-        {
-            public Guid ServiceGuid;
-            public Guid? WriteCharacteristicGuid;
-            public Guid? ReadCharacteristicGuid;
-            public Guid? NotifyCharacteristicGuid;
-
-            public ServiceAndCharacteristics(Guid service, Guid? read, Guid? notify, Guid? write)
-            {
-                ServiceGuid = service;
-                ReadCharacteristicGuid = read;
-                NotifyCharacteristicGuid = notify;
-                WriteCharacteristicGuid = write;
-            }
-        }
-
         public BtScanMode ScanMode { get; set; } = BtScanMode.BALANCED;
         public BtScanMatchMode ScanMatchMode { get; set; } = BtScanMatchMode.STICKY;
         public int ScanTimeout { get; set; } = 3000;
         public ScanFilterOptions? ScanFilterOptions { get; set; } = new ScanFilterOptions();
         public ConnectParameters ConnectParameters { get; set; } = new ConnectParameters();
         public int ConnectTimeout { get; set; } = 5000;
+        public new Func<BluetoothLowEnergyDevice, bool>? DeviceFilter { get; set; } = null;
 
         public List<ServiceAndCharacteristics> SupportedCharacteristics = new List<ServiceAndCharacteristics>()
         {
             // Nordic nRF
             new ServiceAndCharacteristics(
                 new Guid("6e400001-b5a3-f393-e0a9-e50e24dcca9e"),
-                new Guid("6e400003-b5a3-f393-e0a9-e50e24dcca9e"),
+                null,
                 new Guid("6e400003-b5a3-f393-e0a9-e50e24dcca9e"),
                 new Guid("6e400002-b5a3-f393-e0a9-e50e24dcca9e")),
 
@@ -74,6 +75,13 @@ namespace ConnectedDevice.NET.Communication
                 new Guid("0000ffe1-0000-1000-8000-00805f9b34fb"),
                 new Guid("0000ffe1-0000-1000-8000-00805f9b34fb"),
                 new Guid("0000ffe1-0000-1000-8000-00805f9b34fb")),
+            
+            // nRF52832
+            new ServiceAndCharacteristics(
+                new Guid("0000fff0-0000-1000-8000-00805f9b34fb"),
+                new Guid("0000fff1-0000-1000-8000-00805f9b34fb"),
+                new Guid("0000fff1-0000-1000-8000-00805f9b34fb"),
+                new Guid("0000fff2-0000-1000-8000-00805f9b34fb")),
 
             // Microchip RN4870/71, BM70/71
             new ServiceAndCharacteristics(
@@ -276,16 +284,44 @@ namespace ConnectedDevice.NET.Communication
                 if (this.ReadCharacteristics.Count == 0) ConnectedDeviceManager.PrintLog(LogLevel.Warning, "No suitable Read characteristics have ben found.");
                 if (this.NotifyCharacteristics.Count == 0) ConnectedDeviceManager.PrintLog(LogLevel.Warning, "No suitable Notify characteristics have ben found.");
 
-                this.ConnectedDevice = dev;
-                ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Connection to '{0}' completed", this.ConnectedDevice.ToString());
-                var args = new ConnectionChangedEventArgs(this, ConnectionState.CONNECTED, null);
-                this.RaiseConnectionChangedEvent(args);
+                if (this.Params.SupportedCharacteristics.Any() &&
+                    this.WriteCharacteristics.Count == 0 && this.ReadCharacteristics.Count == 0 && this.NotifyCharacteristics.Count == 0)
+                {
+                    // can do nothing -> raise error
+                    var dump = await this.DumpAllServices(this.ConnectedDeviceNative);
+                    throw new NotConnectedException("There is no supported characteristic on this device.\n" + dump);
+                }
+                else
+                {
+                    this.ConnectedDevice = dev;
+                    ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Connection to '{0}' completed", this.ConnectedDevice.ToString());
+                    var args = new ConnectionChangedEventArgs(this, ConnectionState.CONNECTED, null);
+                    this.RaiseConnectionChangedEvent(args);
+                }
+
             }
             catch (Exception e)
             {
                 ConnectedDeviceManager.PrintLog(LogLevel.Error, "Error while connecting: " + e.Message);
                 _ = this.DisconnectFromDeviceNative(e);
             }
+        }
+
+        private async Task<string> DumpAllServices(IDevice device)
+        {
+            var dump = "Services found in Device '" + device.Name + "':\n";
+            var services = await device.GetServicesAsync();
+            foreach (var service in services)
+            {
+                dump += "\tService: '" + service.Id.ToString() + "'\n";
+                var chars = await service.GetCharacteristicsAsync();
+                foreach(var chr in chars)
+                {
+                    dump += "\t\tCharacteristic: '" + chr.Id.ToString() + "' CanWrite=" + chr.CanWrite + "/" + "' CanRead=" + chr.CanRead + "/" + "' CanUpdate=" + chr.CanUpdate + "\n";
+                }
+            }
+
+            return dump;
         }
 
         private void NotifyCharacteristic_ValueUpdated(object? sender, CharacteristicUpdatedEventArgs e)
