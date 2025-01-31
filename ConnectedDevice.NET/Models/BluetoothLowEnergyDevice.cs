@@ -18,9 +18,8 @@ namespace ConnectedDevice.NET.Models
 
         public override string ToString()
         {
-            return String.Format("[{0}] ConnectionType: {1}, Address: {2}, Name: {3}",
+            return String.Format("[{0}] ConnectionType: BLE, Address: {1}, Name: {2}",
                 this.GetType().ToString(),
-                this.ConnectionType.ToString(),
                 this.Address,
                 this.Name
             );

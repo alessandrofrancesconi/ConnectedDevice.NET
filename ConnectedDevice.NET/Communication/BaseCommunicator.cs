@@ -119,11 +119,8 @@ namespace ConnectedDevice.NET.Communication
 
         protected void HandleReceivedData(byte[] data)
         {
-            if (ConnectedDeviceManager.Params.Logger != null)
-            {
-                string utf8 = ASCIIEncoding.UTF8.GetString(data);
-                ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Received data: '{0}'", utf8);
-            }
+            string utf8 = ASCIIEncoding.UTF8.GetString(data);
+            ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Received data: '{0}'", utf8);
 
             lock (this.receivedDataLock)
             {

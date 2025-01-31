@@ -9,9 +9,17 @@ namespace ConnectedDevice.NET.Models
 {
     public class UsbDevice : RemoteDevice
     {
-        public UsbDevice(string address) : base(ConnectionType.USB, address)
+        public UsbDevice(string port) : base(ConnectionType.USB, port)
         {
 
+        }
+
+        public override string ToString()
+        {
+            return String.Format("[{0}] ConnectionType: USB, Port: {1}",
+                this.GetType().ToString(),
+                this.Address
+            );
         }
     }
 }
