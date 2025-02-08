@@ -67,7 +67,7 @@ namespace ConnectedDevice.NET.Android
             var toBeGranted = permissionsStatus.Where(i => i.Value != Permission.Granted).Select(i => i.Key);
             if (toBeGranted.Count() > 0)
             {
-                ConnectedDeviceManager.PrintLog(LogLevel.Warning, "Some permission are not granted, sending request for [{0}]", string.Join(',', toBeGranted));
+                this.PrintLog(LogLevel.Warning, "Some permission are not granted, sending request for [{0}]", string.Join(',', toBeGranted));
                 ActivityCompat.RequestPermissions(
                     this.Params.GetCurrentActivityMethod?.Invoke(),
                     toBeGranted.ToArray(),
@@ -139,7 +139,7 @@ namespace ConnectedDevice.NET.Android
 
                 if (!locationEnabled)
                 {
-                    ConnectedDeviceManager.PrintLog(LogLevel.Warning, "Location Service is disabled.");
+                    this.PrintLog(LogLevel.Warning, "Location Service is disabled.");
                     return false;
                 }
             }
@@ -163,7 +163,7 @@ namespace ConnectedDevice.NET.Android
                 }
                 catch (Exception ex)
                 {
-                    ConnectedDeviceManager.PrintLog(LogLevel.Error, "Error sending data: '{0}'", ex.Message);
+                    this.PrintLog(LogLevel.Error, "Error sending data: '{0}'", ex.Message);
                 }
                 finally
                 {

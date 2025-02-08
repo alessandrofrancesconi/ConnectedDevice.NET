@@ -5,7 +5,7 @@ using System.IO.Ports;
 
 namespace ConnectedDevice.NET.Communication
 {
-    public class UsbCommunicatorParams : BaseCommunicatorParams
+    public class UsbCommunicatorParams : DeviceCommunicatorParams
     {
         public int BaudRate = 9600;
         public Parity Parity = Parity.None;
@@ -19,11 +19,11 @@ namespace ConnectedDevice.NET.Communication
         public static readonly UsbCommunicatorParams Default = new() { };
     }
 
-    public class UsbCommunicator : BaseCommunicator
+    public class UsbCommunicator : DeviceCommunicator
     {
         private SerialPort Serial;
 
-        public UsbCommunicator(UsbCommunicatorParams p = default) : base(ConnectionType.USB, p)
+        public UsbCommunicator(UsbCommunicatorParams p = default) : base(p)
         {
             if (p == default) p = UsbCommunicatorParams.Default;
 
@@ -42,7 +42,7 @@ namespace ConnectedDevice.NET.Communication
         protected override Task ConnectToDeviceNative(RemoteDevice dev, CancellationToken cToken = default)
         {
             this.ConnectedDevice = dev;
-            ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Connecting to {0}...", this.ConnectedDevice.Address);
+            this.PrintLog(LogLevel.Debug, "Connecting to {0}...", this.ConnectedDevice.Address);
 
             try
             {
@@ -52,7 +52,7 @@ namespace ConnectedDevice.NET.Communication
             }
             catch (Exception ex)
             {
-                ConnectedDeviceManager.PrintLog(LogLevel.Error, "Error while connnecting: {0}", ex.Message);
+                this.PrintLog(LogLevel.Error, "Error while connnecting: {0}", ex.Message);
                 this.DisconnectFromDeviceNative(ex);
             }
 
@@ -78,7 +78,7 @@ namespace ConnectedDevice.NET.Communication
                     var dev = new UsbDevice(port);
                     if (Params.DeviceFilter != null && Params.DeviceFilter(dev) == false)
                     {
-                        ConnectedDeviceManager.PrintLog(LogLevel.Warning, "Device found but filtered ({0})", dev.Address);
+                        this.PrintLog(LogLevel.Warning, "Device found but filtered ({0})", dev.Address);
                         continue;
                     }
 
@@ -89,10 +89,10 @@ namespace ConnectedDevice.NET.Communication
             catch (Exception e)
             {
                 error = e;
-                ConnectedDeviceManager.PrintLog(LogLevel.Error, "Error getting serial ports:" + e.Message);
+                this.PrintLog(LogLevel.Error, "Error getting serial ports:" + e.Message);
             }
 
-            ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Discover finished.");
+            this.PrintLog(LogLevel.Debug, "Discover finished.");
             this.RaiseDiscoverDevicesFinishedEvent(new DiscoverDevicesFinishedEventArgs(this, error));
             return Task.CompletedTask;
         }
@@ -110,7 +110,7 @@ namespace ConnectedDevice.NET.Communication
             catch (Exception ex)
             {
                 error = ex;
-                ConnectedDeviceManager.PrintLog(LogLevel.Error, "Error sending data: {0}", ex.Message);
+                this.PrintLog(LogLevel.Error, "Error sending data: {0}", ex.Message);
             }
 
             this.RaiseMessageSentEvent(new MessageSentEventArgs(this, message, error));
@@ -128,13 +128,13 @@ namespace ConnectedDevice.NET.Communication
                     this.Serial.Close();
                 }
 
+                this.PrintLog(LogLevel.Debug, "Disconnection from '{0}' completed", this.ConnectedDevice.Address);
                 this.ConnectedDevice = null;
-                ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Disconnection from '{0}' completed", this.ConnectedDevice.Address);
                 this.RaiseConnectionChangedEvent(new ConnectionChangedEventArgs(this, ConnectionState.DISCONNECTED, e));
             }
             catch (Exception ex)
             {
-                ConnectedDeviceManager.PrintLog(LogLevel.Error, "Error disconnecting from '{0}':", ex.Message);
+                this.PrintLog(LogLevel.Error, "Error disconnecting from '{0}':", ex.Message);
                 // TODO should we raise the ConnectionChange event anyway?
             }
 
@@ -151,13 +151,13 @@ namespace ConnectedDevice.NET.Communication
             }
             catch (Exception ex)
             {
-                ConnectedDeviceManager.PrintLog(LogLevel.Error, "Error getting data: {0}", ex.Message);
+                this.PrintLog(LogLevel.Error, "Error getting data: {0}", ex.Message);
             }
         }
 
         private void Serial_ErrorReceived(object sender, SerialErrorReceivedEventArgs e)
         {
-            ConnectedDeviceManager.PrintLog(LogLevel.Error, "Error received from Serial port: {0}", e.EventType);
+            this.PrintLog(LogLevel.Error, "Error received from Serial port: {0}", e.EventType);
             // TODO: What to do?
         }
 

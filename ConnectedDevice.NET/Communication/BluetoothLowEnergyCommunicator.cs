@@ -7,16 +7,6 @@ using Plugin.BLE.Abstractions.Contracts;
 using Plugin.BLE.Abstractions.EventArgs;
 using Plugin.BLE.Abstractions.Exceptions;
 using Plugin.BLE.Abstractions.Extensions;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net.Http.Headers;
-using System.Security.Cryptography;
-using System.Text;
-using System.Text.RegularExpressions;
-using System.Threading.Tasks;
-using System.Xml.Linq;
-using static ConnectedDevice.NET.Communication.BluetoothLowEnergyCommunicatorParams;
 
 namespace ConnectedDevice.NET.Communication
 {
@@ -36,7 +26,7 @@ namespace ConnectedDevice.NET.Communication
         }
     }
 
-    public class BluetoothLowEnergyCommunicatorParams : BaseCommunicatorParams
+    public class BluetoothLowEnergyCommunicatorParams : DeviceCommunicatorParams
     {
         public enum BtScanMatchMode
         {
@@ -94,7 +84,7 @@ namespace ConnectedDevice.NET.Communication
         public static readonly BluetoothLowEnergyCommunicatorParams Default = new() {};
     }
 
-    public abstract class BluetoothLowEnergyCommunicator : BaseCommunicator
+    public abstract class BluetoothLowEnergyCommunicator : DeviceCommunicator
     {
         private IBluetoothLE Ble;
         
@@ -106,9 +96,9 @@ namespace ConnectedDevice.NET.Communication
 
         private List<RemoteDevice> FoundDevices;
 
-        protected BluetoothLowEnergyCommunicatorParams Params;
+        protected new BluetoothLowEnergyCommunicatorParams Params;
 
-        public BluetoothLowEnergyCommunicator(IBluetoothLE ble, BluetoothLowEnergyCommunicatorParams p = default) : base(ConnectionType.BLUETOOTH_LE, p)
+        public BluetoothLowEnergyCommunicator(IBluetoothLE ble, BluetoothLowEnergyCommunicatorParams p = default) : base(p)
         {
             if (ble == null) throw new ArgumentNullException(nameof(ble));
             if (p == default) p = BluetoothLowEnergyCommunicatorParams.Default;
@@ -130,7 +120,7 @@ namespace ConnectedDevice.NET.Communication
 
         private void Adapter_DeviceConnectionLost(object? sender, DeviceErrorEventArgs e)
         {
-            ConnectedDeviceManager.PrintLog(LogLevel.Error, "Device connection lost. {0}", e.ErrorMessage);
+            this.PrintLog(LogLevel.Error, "Device connection lost. {0}", e.ErrorMessage);
             var exc = new NotConnectedException(e.ErrorMessage);
             _ = this.DisconnectFromDeviceNative(exc);
         }
@@ -139,14 +129,14 @@ namespace ConnectedDevice.NET.Communication
         {
             var dev = new BluetoothLowEnergyDevice(e.Device.Id.ToString(), e.Device.Name);
 
-            ConnectedDeviceManager.PrintLog(LogLevel.Information, "Device discovered: {0}", dev);
+            this.PrintLog(LogLevel.Information, "Device discovered: {0}", dev);
             var args = new DeviceDiscoveredEventArgs(this, dev);
             this.RaiseDeviceDiscoveredEvent(args);
         }
 
         private void Ble_StateChanged(object? sender, BluetoothStateChangedArgs e)
         {
-            ConnectedDeviceManager.PrintLog(LogLevel.Information, "Adapter state changed from {0} to {1}", e.OldState, e.NewState);
+            this.PrintLog(LogLevel.Information, "Adapter state changed from {0} to {1}", e.OldState, e.NewState);
 
             AdapterStateChangedEventArgs args;
             switch (e.NewState)
@@ -169,11 +159,11 @@ namespace ConnectedDevice.NET.Communication
 
         public override async Task DiscoverDevices(CancellationToken cToken)
         {
-            ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Request to discover devices...");
+            this.PrintLog(LogLevel.Debug, "Request to discover devices...");
 
             if (this.Ble.Adapter.IsScanning)
             {
-                ConnectedDeviceManager.PrintLog(LogLevel.Warning, "Already scanning.");
+                this.PrintLog(LogLevel.Warning, "Already scanning.");
                 return;
             }
 
@@ -206,7 +196,7 @@ namespace ConnectedDevice.NET.Communication
                         bool valid = Params.DeviceFilter(rd);
                         if (!valid)
                         {
-                            ConnectedDeviceManager.PrintLog(LogLevel.Warning, "Device found but filtered ({0}, {1})", dev.Id.ToString(), dev.Name);
+                            this.PrintLog(LogLevel.Warning, "Device found but filtered ({0}, {1})", dev.Id.ToString(), dev.Name);
                             return false;
                         }
                         else return true;
@@ -216,7 +206,7 @@ namespace ConnectedDevice.NET.Communication
                 false,
                 mergedTokens.Token);
 
-            ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Discover finished.");
+            this.PrintLog(LogLevel.Debug, "Discover finished.");
             var args = new DiscoverDevicesFinishedEventArgs(this, null);
             this.RaiseDiscoverDevicesFinishedEvent(args);
         }
@@ -230,7 +220,7 @@ namespace ConnectedDevice.NET.Communication
                 if (this.Params.ConnectTimeout > 0) localToken.CancelAfter(this.Params.ConnectTimeout);
 
                 this.ConnectedDeviceNative = await this.Ble.Adapter.ConnectToKnownDeviceAsync(new Guid(dev.Address), this.Params.ConnectParameters, mergedTokens.Token);
-                ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Connected to {0}. Setting RX/TX services...", dev.Address);
+                this.PrintLog(LogLevel.Debug, "Connected to {0}. Setting RX/TX services...", dev.Address);
 
                 // for each declared Service, setup the characteristics
                 this.WriteCharacteristics.Clear();
@@ -250,7 +240,7 @@ namespace ConnectedDevice.NET.Communication
                             if (write != null && write.CanWrite)
                             {
                                 this.WriteCharacteristics.Add(write);
-                                ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Registered Write characteristic {0}.", write.Id);
+                                this.PrintLog(LogLevel.Debug, "Registered Write characteristic {0}.", write.Id);
                             }
                         }
 
@@ -261,7 +251,7 @@ namespace ConnectedDevice.NET.Communication
                             if (read != null && read.CanRead)
                             {
                                 this.ReadCharacteristics.Add(read);
-                                ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Registered Read characteristic {0}.", read.Id);
+                                this.PrintLog(LogLevel.Debug, "Registered Read characteristic {0}.", read.Id);
                             }
                         }
 
@@ -274,15 +264,15 @@ namespace ConnectedDevice.NET.Communication
                                 this.NotifyCharacteristics.Add(notify);
                                 notify.ValueUpdated += NotifyCharacteristic_ValueUpdated;
                                 _ = notify.StartUpdatesAsync();
-                                ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Registered Notify characteristic {0}.", notify.Id);
+                                this.PrintLog(LogLevel.Debug, "Registered Notify characteristic {0}.", notify.Id);
                             }
                         }
                     }
                 }
 
-                if (this.WriteCharacteristics.Count == 0) ConnectedDeviceManager.PrintLog(LogLevel.Warning, "No suitable Write characteristics have ben found.");
-                if (this.ReadCharacteristics.Count == 0) ConnectedDeviceManager.PrintLog(LogLevel.Warning, "No suitable Read characteristics have ben found.");
-                if (this.NotifyCharacteristics.Count == 0) ConnectedDeviceManager.PrintLog(LogLevel.Warning, "No suitable Notify characteristics have ben found.");
+                if (this.WriteCharacteristics.Count == 0) this.PrintLog(LogLevel.Warning, "No suitable Write characteristics have ben found.");
+                if (this.ReadCharacteristics.Count == 0) this.PrintLog(LogLevel.Warning, "No suitable Read characteristics have ben found.");
+                if (this.NotifyCharacteristics.Count == 0) this.PrintLog(LogLevel.Warning, "No suitable Notify characteristics have ben found.");
 
                 if (this.Params.SupportedCharacteristics.Any() &&
                     this.WriteCharacteristics.Count == 0 && this.ReadCharacteristics.Count == 0 && this.NotifyCharacteristics.Count == 0)
@@ -294,7 +284,7 @@ namespace ConnectedDevice.NET.Communication
                 else
                 {
                     this.ConnectedDevice = dev;
-                    ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Connection to '{0}' completed", this.ConnectedDevice.ToString());
+                    this.PrintLog(LogLevel.Debug, "Connection to '{0}' completed", this.ConnectedDevice.ToString());
                     var args = new ConnectionChangedEventArgs(this, ConnectionState.CONNECTED, null);
                     this.RaiseConnectionChangedEvent(args);
                 }
@@ -302,7 +292,7 @@ namespace ConnectedDevice.NET.Communication
             }
             catch (Exception e)
             {
-                ConnectedDeviceManager.PrintLog(LogLevel.Error, "Error while connecting: " + e.Message);
+                this.PrintLog(LogLevel.Error, "Error while connecting: " + e.Message);
                 _ = this.DisconnectFromDeviceNative(e);
             }
         }
@@ -342,7 +332,7 @@ namespace ConnectedDevice.NET.Communication
                     }
                     catch (Exception nEx)
                     {
-                        ConnectedDeviceManager.PrintLog(LogLevel.Warning, "Cannot stop listening to Characteristic '{0}' while disconnecting: {1}", nChar.Id, nEx.Message);
+                        this.PrintLog(LogLevel.Warning, "Cannot stop listening to Characteristic '{0}' while disconnecting: {1}", nChar.Id, nEx.Message);
                     }
                 }
                 this.WriteCharacteristics.Clear();
@@ -351,7 +341,7 @@ namespace ConnectedDevice.NET.Communication
 
                 string name = this.ConnectedDeviceNative.Name;
                 await this.Ble.Adapter.DisconnectDeviceAsync(this.ConnectedDeviceNative);
-                ConnectedDeviceManager.PrintLog(LogLevel.Debug, "Disconnection from '{0}' completed", name);
+                this.PrintLog(LogLevel.Debug, "Disconnection from '{0}' completed", name);
                 this.ConnectedDeviceNative = null;
             }
 
@@ -384,7 +374,7 @@ namespace ConnectedDevice.NET.Communication
             }
             catch (Exception ex)
             {
-                ConnectedDeviceManager.PrintLog(LogLevel.Error, "Error sending data: '{0}'", ex.Message);
+                this.PrintLog(LogLevel.Error, "Error sending data: '{0}'", ex.Message);
             }
             finally
             {
@@ -407,12 +397,12 @@ namespace ConnectedDevice.NET.Communication
             }
             catch (CharacteristicReadException ex)
             {
-                ConnectedDeviceManager.PrintLog(LogLevel.Error, "Error reading data: '{0}'", ex.Message);
+                this.PrintLog(LogLevel.Error, "Error reading data: '{0}'", ex.Message);
                 return new(null, ex.HResult) { };
             }
             catch (Exception ex)
             {
-                ConnectedDeviceManager.PrintLog(LogLevel.Error, "Error reading data: '{0}'", ex.Message);
+                this.PrintLog(LogLevel.Error, "Error reading data: '{0}'", ex.Message);
                 return new (null, 0) { };
             }
         }

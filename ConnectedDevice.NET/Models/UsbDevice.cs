@@ -1,5 +1,4 @@
-﻿using ConnectedDevice.NET.Communication;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -9,14 +8,14 @@ namespace ConnectedDevice.NET.Models
 {
     public class UsbDevice : RemoteDevice
     {
-        public UsbDevice(string port) : base(ConnectionType.USB, port)
+        public UsbDevice(string port) : base(port)
         {
 
         }
 
         public override string ToString()
         {
-            return String.Format("[{0}] ConnectionType: USB, Port: {1}",
+            return String.Format("[{0}] Port: {1}",
                 this.GetType().ToString(),
                 this.Address
             );

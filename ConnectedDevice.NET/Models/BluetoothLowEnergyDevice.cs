@@ -1,5 +1,4 @@
-﻿using ConnectedDevice.NET.Communication;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -11,7 +10,7 @@ namespace ConnectedDevice.NET.Models
     {
         public string Name { get; set; }
 
-        public BluetoothLowEnergyDevice(string address, string name) : base(ConnectionType.BLUETOOTH_LE, address)
+        public BluetoothLowEnergyDevice(string address, string name) : base(address)
         {
             Name = name;
         }

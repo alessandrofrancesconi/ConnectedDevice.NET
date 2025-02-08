@@ -1,5 +1,4 @@
-﻿using ConnectedDevice.NET.Communication;
-using ConnectedDevice.NET.Communication.Protocol;
+﻿using ConnectedDevice.NET.Communication.Protocol;
 using ConnectedDevice.NET.Exceptions;
 using ConnectedDevice.NET.Models;
 using System;
@@ -11,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace ConnectedDevice.NET
 {
-    public static partial class ConnectedDeviceManager
+    public partial class DeviceCommunicator
     {
         // events
         internal static EventHandler<DeviceDiscoveredEventArgs> _deviceDiscovered;
@@ -104,7 +103,7 @@ namespace ConnectedDevice.NET
             }
         }
 
-        internal static void RaiseEvent<T>(EventHandler<T> handler, BaseCommunicator source, T args) where T : EventArgs
+        internal static void RaiseEvent<T>(EventHandler<T> handler, DeviceCommunicator source, T args) where T : EventArgs
         {
             handler?.Invoke(source, args);
         }
@@ -112,11 +111,11 @@ namespace ConnectedDevice.NET
 
     public class BaseEventArgs : EventArgs
     {
-        public BaseCommunicator Source;
+        public DeviceCommunicator SourceCommunicator;
 
-        public BaseEventArgs(BaseCommunicator s)
+        public BaseEventArgs(DeviceCommunicator s)
         {
-            Source = s;
+            SourceCommunicator = s;
         }
     }
 
@@ -124,7 +123,7 @@ namespace ConnectedDevice.NET
     {
         public AdapterState NewState;
 
-        public AdapterStateChangedEventArgs(BaseCommunicator s, AdapterState ns) : base(s)
+        public AdapterStateChangedEventArgs(DeviceCommunicator s, AdapterState ns) : base(s)
         {
             this.NewState = ns;
         }
@@ -133,7 +132,7 @@ namespace ConnectedDevice.NET
     {
         public RemoteDevice DiscoveredDevice;
 
-        public DeviceDiscoveredEventArgs(BaseCommunicator s, RemoteDevice d) : base(s)
+        public DeviceDiscoveredEventArgs(DeviceCommunicator s, RemoteDevice d) : base(s)
         {
             this.DiscoveredDevice = d;
         }
@@ -143,7 +142,7 @@ namespace ConnectedDevice.NET
     {
         public Exception? Error;
 
-        public DiscoverDevicesFinishedEventArgs(BaseCommunicator s, Exception? e) : base(s)
+        public DiscoverDevicesFinishedEventArgs(DeviceCommunicator s, Exception? e) : base(s)
         {
             this.Error = e;
         }
@@ -154,7 +153,7 @@ namespace ConnectedDevice.NET
         public ConnectionState NewState;
         public Exception? Error;
 
-        public ConnectionChangedEventArgs(BaseCommunicator s, ConnectionState ns, Exception? e) : base(s)
+        public ConnectionChangedEventArgs(DeviceCommunicator s, ConnectionState ns, Exception? e) : base(s)
         {
             this.NewState = ns;
             this.Error = e;
@@ -166,7 +165,7 @@ namespace ConnectedDevice.NET
         public Guid TransmissionId;
         public Exception? Error;
 
-        public DataSendFinishedEventArgs(BaseCommunicator s, Guid t, Exception? e) : base(s)
+        public DataSendFinishedEventArgs(DeviceCommunicator s, Guid t, Exception? e) : base(s)
         {
             this.TransmissionId = t;
             this.Error = e;
@@ -178,7 +177,7 @@ namespace ConnectedDevice.NET
         public ServerMessage Message;
         public Exception? Error;
 
-        public MessageReceivedEventArgs(BaseCommunicator s, ServerMessage m, Exception? e = null) : base(s)
+        public MessageReceivedEventArgs(DeviceCommunicator s, ServerMessage m, Exception? e = null) : base(s)
         {
             this.Message = m;
             this.Error = e;
@@ -190,7 +189,7 @@ namespace ConnectedDevice.NET
         public ClientMessage Message;
         public Exception? Error;
 
-        public MessageSentEventArgs(BaseCommunicator s, ClientMessage m, Exception? e = null) : base(s)
+        public MessageSentEventArgs(DeviceCommunicator s, ClientMessage m, Exception? e = null) : base(s)
         {
             this.Message = m;
             this.Error = e;
