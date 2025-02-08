@@ -113,9 +113,10 @@ namespace ConnectedDevice.NET.Android
 
         public override AdapterState GetAdapterState()
         {
-            var a = BluetoothAdapter.DefaultAdapter;
-            if (a == null) return AdapterState.MISSING;
-            else if (a.IsEnabled) return AdapterState.ON;
+            var bluetoothManager = this.Params.GetCurrentActivityMethod()?.ApplicationContext?.GetSystemService(Context.BluetoothService) as BluetoothManager;
+            if (bluetoothManager == null || bluetoothManager.Adapter == null) return AdapterState.MISSING;
+            var a = bluetoothManager.Adapter;
+            if (a.IsEnabled) return AdapterState.ON;
             else return AdapterState.OFF;
         }
 

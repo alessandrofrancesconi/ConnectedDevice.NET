@@ -4,6 +4,13 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <Title>ConnectedDevice.NET</Title>
+    <Authors>Alessandro Francesconi</Authors>
+    <Description>A library to ease the communication between different types of devices (for example Bluetooth and USB), for Mobile and Desktop platforms.</Description>
+    <PackageProjectUrl>https://github.com/alessandrofrancesconi/ConnectedDevice.NET</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RepositoryUrl>https://github.com/alessandrofrancesconi/ConnectedDevice.NET</RepositoryUrl>
+    <Version>1.0.1</Version>
   </PropertyGroup>
 
   <ItemGroup>
@@ -14,6 +21,13 @@
 
   <ItemGroup>
     <Folder Include="Events\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\README.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
   </ItemGroup>
 
 </Project>

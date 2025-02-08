@@ -5,6 +5,13 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <SupportedOSPlatformVersion>15.0</SupportedOSPlatformVersion>
+    <Title>ConnectedDevice.NET.iOS</Title>
+    <Version>1.0.1</Version>
+    <Authors>Alessandro Francesconi</Authors>
+    <Description>Extension for ConnectedDevice.NET to use it on iOS platforms</Description>
+    <PackageProjectUrl>https://github.com/alessandrofrancesconi/ConnectedDevice.NET</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RepositoryUrl>https://github.com/alessandrofrancesconi/ConnectedDevice.NET</RepositoryUrl>
   </PropertyGroup>
 
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
@@ -20,6 +27,12 @@
     <MtouchVerbosity></MtouchVerbosity>
     <CodesignResourceRules></CodesignResourceRules>
   </PropertyGroup>
+  <ItemGroup>
+    <None Include="..\README.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ConnectedDevice.NET\ConnectedDevice.NET.csproj">
       <ReferenceSourceTarget></ReferenceSourceTarget>
