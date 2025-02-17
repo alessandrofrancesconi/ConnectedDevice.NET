@@ -17,7 +17,7 @@ namespace ConnectedDevice.NET.Models
 
         public override string ToString()
         {
-            return String.Format("[{0}] Address: {2}",
+            return String.Format("[{0}] Address: {1}",
                 this.GetType().ToString(),
                 this.Address
             );

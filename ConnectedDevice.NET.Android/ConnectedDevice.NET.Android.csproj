@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <SupportedOSPlatformVersion>24.0</SupportedOSPlatformVersion>
     <Title>ConnectedDevice.NET.Android</Title>
-    <Version>1.0.1</Version>
+    <Version>1.0.2</Version>
     <Authors>Alessandro Francesconi</Authors>
     <Description>Extension for ConnectedDevice.NET to use it on Android platforms
 </Description>
