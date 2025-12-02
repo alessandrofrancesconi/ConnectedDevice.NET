@@ -416,5 +416,13 @@ namespace ConnectedDevice.NET.Communication
             if (this.ConnectedDeviceNative?.State == DeviceState.Connected) return ConnectionState.CONNECTED;
             else return ConnectionState.DISCONNECTED;
         }
+
+        public override void Dispose()
+        {
+            this.Ble.StateChanged -= Ble_StateChanged;
+            this.Ble.Adapter.DeviceDiscovered -= Adapter_DeviceDiscovered;
+            this.Ble.Adapter.DeviceConnectionError -= Adapter_DeviceConnectionLost;
+            this.Ble.Adapter.DeviceConnectionLost -= Adapter_DeviceConnectionLost;
+        }
     }
 }

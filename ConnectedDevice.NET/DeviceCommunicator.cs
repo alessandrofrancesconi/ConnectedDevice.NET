@@ -33,7 +33,7 @@ namespace ConnectedDevice.NET
         public Func<RemoteDevice, bool>? DeviceFilter { get; set; } = null;
     }
 
-    public abstract partial class DeviceCommunicator
+    public abstract partial class DeviceCommunicator : IDisposable
     {
         public RemoteDevice? ConnectedDevice { get; protected set; }
 
@@ -56,6 +56,8 @@ namespace ConnectedDevice.NET
         public abstract AdapterState GetAdapterState();
         public abstract ConnectionState GetConnectionState();
         public abstract Task DiscoverDevices(CancellationToken cToken = default);
+
+        public abstract void Dispose();
 
         public async Task ConnectToDevice(RemoteDevice dev, IMessageParser parser, CancellationToken cToken = default) 
         {

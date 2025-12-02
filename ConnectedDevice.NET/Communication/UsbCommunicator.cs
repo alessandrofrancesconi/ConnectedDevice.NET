@@ -168,5 +168,13 @@ namespace ConnectedDevice.NET.Communication
         {
             return this.Serial.IsOpen ? ConnectionState.CONNECTED : ConnectionState.DISCONNECTED;
         }
+
+        public override void Dispose()
+        {
+            this.Serial.DataReceived -= Serial_DataReceived;
+            this.Serial.ErrorReceived -= Serial_ErrorReceived;
+            this.Serial.Close();
+            this.Serial.Dispose();
+        }
     }
 }
