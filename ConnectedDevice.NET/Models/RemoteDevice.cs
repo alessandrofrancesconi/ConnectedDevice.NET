@@ -9,17 +9,24 @@ namespace ConnectedDevice.NET.Models
     public class RemoteDevice
     {
         public string Address { get; set; }
+        public string DisplayName { get; set; }
 
         public RemoteDevice(string address)
         {
             Address = address;
         }
 
+        public RemoteDevice(string address, string name) : this(address)
+        {
+            DisplayName = name;
+        }
+
         public override string ToString()
         {
-            return String.Format("[{0}] Address: {1}",
+            return String.Format("[{0}] Address: {1}, DisplayName: {2}",
                 this.GetType().ToString(),
-                this.Address
+                this.Address, 
+                this.DisplayName
             );
         }
 

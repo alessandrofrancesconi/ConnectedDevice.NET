@@ -14,7 +14,7 @@ namespace ConnectedDevice.NET.Communication
         public int WriteTimeout = 1000;
         public int ReadTimeout = 1000;
         public Handshake Handshake = Handshake.None;
-        public new Func<UsbDevice, bool>? DeviceFilter { get; set; } = null;
+        public new Func<RemoteDevice, bool>? DeviceFilter { get; set; } = null;
 
         public static readonly UsbCommunicatorParams Default = new() { };
     }
@@ -23,10 +23,8 @@ namespace ConnectedDevice.NET.Communication
     {
         private SerialPort Serial;
 
-        public UsbCommunicator(UsbCommunicatorParams p = default) : base(p)
+        public UsbCommunicator(UsbCommunicatorParams? p = null) : base(p ?? UsbCommunicatorParams.Default)
         {
-            if (p == default) p = UsbCommunicatorParams.Default;
-
             this.Serial = new SerialPort();
             this.Serial.BaudRate = p.BaudRate;
             this.Serial.Parity = p.Parity;
@@ -37,6 +35,11 @@ namespace ConnectedDevice.NET.Communication
             this.Serial.Handshake = p.Handshake;
             this.Serial.DataReceived += Serial_DataReceived;
             this.Serial.ErrorReceived += Serial_ErrorReceived;
+        }
+
+        public override string GetInterfaceName()
+        {
+            return "USB";
         }
 
         protected override Task ConnectToDeviceNative(RemoteDevice dev, CancellationToken cToken = default)
@@ -52,7 +55,7 @@ namespace ConnectedDevice.NET.Communication
             }
             catch (Exception ex)
             {
-                this.PrintLog(LogLevel.Error, "Error while connnecting: {0}", ex.Message);
+                this.PrintLog(LogLevel.Error, "Error while connecting: {0}", ex.Message);
                 this.DisconnectFromDeviceNative(ex);
             }
 
@@ -75,7 +78,7 @@ namespace ConnectedDevice.NET.Communication
                 {
                     if (port.Contains("BTHENUM")) continue;
 
-                    var dev = new UsbDevice(port);
+                    var dev = new RemoteDevice(port, port);
                     if (Params.DeviceFilter != null && Params.DeviceFilter(dev) == false)
                     {
                         this.PrintLog(LogLevel.Warning, "Device found but filtered ({0})", dev.Address);

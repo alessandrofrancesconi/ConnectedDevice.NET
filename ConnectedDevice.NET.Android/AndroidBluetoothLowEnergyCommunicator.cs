@@ -34,7 +34,7 @@ namespace ConnectedDevice.NET.Android
 
         private new AndroidBluetoothLowEnergyCommunicatorParams Params = default;
 
-        public AndroidBluetoothLowEnergyCommunicator(AndroidBluetoothLowEnergyCommunicatorParams p = default) : base(CrossBluetoothLE.Current, p)
+        public AndroidBluetoothLowEnergyCommunicator(AndroidBluetoothLowEnergyCommunicatorParams? p = null) : base(CrossBluetoothLE.Current, p ?? AndroidBluetoothLowEnergyCommunicatorParams.Default)
         {
             this.Params = p;
         }

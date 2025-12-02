@@ -48,7 +48,7 @@ namespace ConnectedDevice.NET.Communication
         public ScanFilterOptions? ScanFilterOptions { get; set; } = new ScanFilterOptions();
         public ConnectParameters ConnectParameters { get; set; } = new ConnectParameters();
         public int ConnectTimeout { get; set; } = 5000;
-        public new Func<BluetoothLowEnergyDevice, bool>? DeviceFilter { get; set; } = null;
+        public new Func<RemoteDevice, bool>? DeviceFilter { get; set; } = null;
 
         public List<ServiceAndCharacteristics> SupportedCharacteristics = new List<ServiceAndCharacteristics>()
         {
@@ -96,12 +96,9 @@ namespace ConnectedDevice.NET.Communication
 
         private List<RemoteDevice> FoundDevices;
 
-        protected new BluetoothLowEnergyCommunicatorParams Params;
-
-        public BluetoothLowEnergyCommunicator(IBluetoothLE ble, BluetoothLowEnergyCommunicatorParams p = default) : base(p)
+        public BluetoothLowEnergyCommunicator(IBluetoothLE ble, BluetoothLowEnergyCommunicatorParams? p = null) : base(p ?? BluetoothLowEnergyCommunicatorParams.Default)
         {
             if (ble == null) throw new ArgumentNullException(nameof(ble));
-            if (p == default) p = BluetoothLowEnergyCommunicatorParams.Default;
 
             this.Ble = ble;
             this.Ble.StateChanged += Ble_StateChanged;
@@ -118,6 +115,11 @@ namespace ConnectedDevice.NET.Communication
             this.Params = p;
         }
 
+        public override string GetInterfaceName()
+        {
+            return "Bluetooth LE";
+        }
+
         private void Adapter_DeviceConnectionLost(object? sender, DeviceErrorEventArgs e)
         {
             this.PrintLog(LogLevel.Error, "Device connection lost. {0}", e.ErrorMessage);
@@ -127,7 +129,7 @@ namespace ConnectedDevice.NET.Communication
 
         private void Adapter_DeviceDiscovered(object? sender, DeviceEventArgs e)
         {
-            var dev = new BluetoothLowEnergyDevice(e.Device.Id.ToString(), e.Device.Name);
+            var dev = new RemoteDevice(e.Device.Id.ToString(), e.Device.Name);
 
             this.PrintLog(LogLevel.Information, "Device discovered: {0}", dev);
             var args = new DeviceDiscoveredEventArgs(this, dev);
@@ -168,31 +170,32 @@ namespace ConnectedDevice.NET.Communication
             }
 
             this.FoundDevices.Clear();
-            if (this.Params.ScanMatchMode == BluetoothLowEnergyCommunicatorParams.BtScanMatchMode.STICKY)
+            var bleParams = (BluetoothLowEnergyCommunicatorParams)this.Params;
+            if (bleParams.ScanMatchMode == BluetoothLowEnergyCommunicatorParams.BtScanMatchMode.STICKY)
                 this.Ble.Adapter.ScanMatchMode = ScanMatchMode.STICKY;
-            if (this.Params.ScanMatchMode == BluetoothLowEnergyCommunicatorParams.BtScanMatchMode.AGRESSIVE)
+            if (bleParams.ScanMatchMode == BluetoothLowEnergyCommunicatorParams.BtScanMatchMode.AGRESSIVE)
                 this.Ble.Adapter.ScanMatchMode = ScanMatchMode.AGRESSIVE;
 
-            if (this.Params.ScanMode == BluetoothLowEnergyCommunicatorParams.BtScanMode.PASSIVE)
+            if (bleParams.ScanMode == BluetoothLowEnergyCommunicatorParams.BtScanMode.PASSIVE)
                 this.Ble.Adapter.ScanMode = ScanMode.Passive;
-            if (this.Params.ScanMode == BluetoothLowEnergyCommunicatorParams.BtScanMode.LOW_POWER)
+            if (bleParams.ScanMode == BluetoothLowEnergyCommunicatorParams.BtScanMode.LOW_POWER)
                 this.Ble.Adapter.ScanMode = ScanMode.LowPower;
-            if (this.Params.ScanMode == BluetoothLowEnergyCommunicatorParams.BtScanMode.BALANCED)
+            if (bleParams.ScanMode == BluetoothLowEnergyCommunicatorParams.BtScanMode.BALANCED)
                 this.Ble.Adapter.ScanMode = ScanMode.Balanced;
-            if (this.Params.ScanMode == BluetoothLowEnergyCommunicatorParams.BtScanMode.LOW_LATENCY)
+            if (bleParams.ScanMode == BluetoothLowEnergyCommunicatorParams.BtScanMode.LOW_LATENCY)
                 this.Ble.Adapter.ScanMode = ScanMode.LowLatency;
 
             CancellationTokenSource localToken = new CancellationTokenSource();
             CancellationTokenSource mergedTokens = CancellationTokenSource.CreateLinkedTokenSource(localToken.Token, cToken);
-            if (this.Params.ScanTimeout > 0) localToken.CancelAfter(this.Params.ScanTimeout);
+            if (bleParams.ScanTimeout > 0) localToken.CancelAfter(bleParams.ScanTimeout);
 
             await this.Ble.Adapter.StartScanningForDevicesAsync(
-                Params.ScanFilterOptions,
+                bleParams.ScanFilterOptions,
                 (dev) =>
                 {
                     if (Params.DeviceFilter != null)
                     {
-                        var rd = new BluetoothLowEnergyDevice(dev.Id.ToString(), dev.Name);
+                        var rd = new RemoteDevice(dev.Id.ToString(), dev.Name);
                         bool valid = Params.DeviceFilter(rd);
                         if (!valid)
                         {
@@ -215,18 +218,19 @@ namespace ConnectedDevice.NET.Communication
         {
             try
             {
+                var bleParams = (BluetoothLowEnergyCommunicatorParams)this.Params;
                 CancellationTokenSource localToken = new CancellationTokenSource();
                 CancellationTokenSource mergedTokens = CancellationTokenSource.CreateLinkedTokenSource(localToken.Token, cToken);
-                if (this.Params.ConnectTimeout > 0) localToken.CancelAfter(this.Params.ConnectTimeout);
+                if (bleParams.ConnectTimeout > 0) localToken.CancelAfter(bleParams.ConnectTimeout);
 
-                this.ConnectedDeviceNative = await this.Ble.Adapter.ConnectToKnownDeviceAsync(new Guid(dev.Address), this.Params.ConnectParameters, mergedTokens.Token);
+                this.ConnectedDeviceNative = await this.Ble.Adapter.ConnectToKnownDeviceAsync(new Guid(dev.Address), bleParams.ConnectParameters, mergedTokens.Token);
                 this.PrintLog(LogLevel.Debug, "Connected to {0}. Setting RX/TX services...", dev.Address);
 
                 // for each declared Service, setup the characteristics
                 this.WriteCharacteristics.Clear();
                 this.NotifyCharacteristics.Clear();
                 this.ReadCharacteristics.Clear();
-                foreach (var swr in this.Params.SupportedCharacteristics)
+                foreach (var swr in bleParams.SupportedCharacteristics)
                 {
                     var service = await this.ConnectedDeviceNative.GetServiceAsync(swr.ServiceGuid, mergedTokens.Token);
                     if (service != null)
@@ -274,7 +278,7 @@ namespace ConnectedDevice.NET.Communication
                 if (this.ReadCharacteristics.Count == 0) this.PrintLog(LogLevel.Warning, "No suitable Read characteristics have ben found.");
                 if (this.NotifyCharacteristics.Count == 0) this.PrintLog(LogLevel.Warning, "No suitable Notify characteristics have ben found.");
 
-                if (this.Params.SupportedCharacteristics.Any() &&
+                if (bleParams.SupportedCharacteristics.Any() &&
                     this.WriteCharacteristics.Count == 0 && this.ReadCharacteristics.Count == 0 && this.NotifyCharacteristics.Count == 0)
                 {
                     // can do nothing -> raise error

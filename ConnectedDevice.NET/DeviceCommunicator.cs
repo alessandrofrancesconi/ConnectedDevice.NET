@@ -26,7 +26,7 @@ namespace ConnectedDevice.NET
         OFF
     }
 
-    public abstract class DeviceCommunicatorParams
+    public class DeviceCommunicatorParams
     {
         public ILogger? Logger { get; set; } = null;
         public byte[] MessageTerminator { get; set; } = null;
@@ -42,19 +42,22 @@ namespace ConnectedDevice.NET
         private List<byte> PartialReceivedData;
         private readonly object receivedDataLock = new object();
 
-        protected DeviceCommunicatorParams Params;
+        public DeviceCommunicatorParams Params;
 
-        public DeviceCommunicator(DeviceCommunicatorParams p = default)
+        public DeviceCommunicator(DeviceCommunicatorParams? p = null)
         {
             Params = p;
+            if (Params == null) Params = new DeviceCommunicatorParams();
+
             PartialReceivedData = new List<byte>();
         }
 
+        public abstract string GetInterfaceName();
         public abstract AdapterState GetAdapterState();
         public abstract ConnectionState GetConnectionState();
         public abstract Task DiscoverDevices(CancellationToken cToken = default);
 
-        public async Task ConnectToDevice<T>(T dev, IMessageParser parser, CancellationToken cToken = default) where T : RemoteDevice
+        public async Task ConnectToDevice(RemoteDevice dev, IMessageParser parser, CancellationToken cToken = default) 
         {
             this.PrintLog(LogLevel.Debug, "Start connecting to '{0}'...", dev.ToString());
             ConnectedDeviceParser = parser;
@@ -62,7 +65,7 @@ namespace ConnectedDevice.NET
         }
         protected abstract Task ConnectToDeviceNative(RemoteDevice dev, CancellationToken cToken = default);
 
-        public async Task DisconnectFromDevice()
+        public async Task DisconnectFromDevice(Exception? externalException = null)
         {
             if (ConnectedDevice == null)
             {
@@ -71,7 +74,7 @@ namespace ConnectedDevice.NET
             }
 
             this.PrintLog(LogLevel.Debug, "Start disconnecting from '{0}'...", ConnectedDevice.ToString());
-            await DisconnectFromDeviceNative();
+            await DisconnectFromDeviceNative(externalException);
         }
         protected abstract Task DisconnectFromDeviceNative(Exception? e = null);
 
@@ -154,21 +157,29 @@ namespace ConnectedDevice.NET
         private void ParseAndNotifyMessage(byte[] data)
         {
             MessageReceivedEventArgs args = null;
-            try
+            if (this.ConnectedDeviceParser != null)
             {
-                var message = ConnectedDeviceParser?.Parse(ConnectedDevice, data);
-                args = new MessageReceivedEventArgs(this, message, null);
+                try
+                {
+                    var message = ConnectedDeviceParser.Parse(ConnectedDevice, data);
+                    args = new MessageReceivedEventArgs(this, message, null);
+                }
+                catch (Exception e)
+                {
+                    var msg = string.Format("Error while parsing the incoming message: {0}", e.Message);
+                    this.PrintLog(LogLevel.Error, msg);
+                    args = new MessageReceivedEventArgs(this, null, new ProtocolException(msg, e));
+                }
             }
-            catch (Exception e)
+            else
             {
-                var msg = string.Format("Error while parsing the incoming message: {0}", e.Message);
-                this.PrintLog(LogLevel.Error, msg);
-                args = new MessageReceivedEventArgs(this, null, new ProtocolException(msg, e));
+                args = new MessageReceivedEventArgs(this, new ServerMessage()
+                {
+                    Data = data
+                });
             }
-            finally
-            {
-                RaiseMessageReceivedEvent(args);
-            }
+
+            RaiseMessageReceivedEvent(args);
         }
 
         // events raising
