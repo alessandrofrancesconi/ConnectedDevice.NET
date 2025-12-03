@@ -111,8 +111,6 @@ namespace ConnectedDevice.NET.Communication
             this.ReadCharacteristics = new List<ICharacteristic>();
 
             this.FoundDevices = new List<RemoteDevice>();
-
-            this.Params = p;
         }
 
         public override string GetInterfaceName()

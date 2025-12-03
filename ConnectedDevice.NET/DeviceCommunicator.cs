@@ -104,7 +104,7 @@ namespace ConnectedDevice.NET
                 RaiseMessageSentEvent(args);
             }
 
-            return args.Error != null;
+            return args.Error == null;
         }
         protected abstract Task SendDataNative(ClientMessage message);
 

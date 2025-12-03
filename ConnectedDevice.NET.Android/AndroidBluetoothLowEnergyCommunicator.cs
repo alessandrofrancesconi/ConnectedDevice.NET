@@ -32,11 +32,10 @@ namespace ConnectedDevice.NET.Android
         
         public EventHandler<EventArgs>? OnLocationServiceDisabled;
 
-        private new AndroidBluetoothLowEnergyCommunicatorParams Params = default;
-
         public AndroidBluetoothLowEnergyCommunicator(AndroidBluetoothLowEnergyCommunicatorParams? p = null) : base(CrossBluetoothLE.Current, p ?? AndroidBluetoothLowEnergyCommunicatorParams.Default)
         {
-            this.Params = p;
+            var andParams = (AndroidBluetoothLowEnergyCommunicatorParams)this.Params;
+            if (andParams.RequestPermission && andParams.GetCurrentActivityMethod == null) throw new InvalidOperationException("GetCurrentActivityMethod must be set when RequestPermission is true.");
         }
 
         private void CheckPermissions()
@@ -48,7 +47,8 @@ namespace ConnectedDevice.NET.Android
 
         private bool RequestBluetoothPermissions()
         {
-            if (!this.Params.RequestPermission) return true;
+            var andParams = (AndroidBluetoothLowEnergyCommunicatorParams)this.Params;
+            if (!andParams.RequestPermission) return true;
 
             var permissionsStatus = new Dictionary<string, Permission>();
             if (OperatingSystem.IsAndroidVersionAtLeast(31))
@@ -69,7 +69,7 @@ namespace ConnectedDevice.NET.Android
             {
                 this.PrintLog(LogLevel.Warning, "Some permission are not granted, sending request for [{0}]", string.Join(',', toBeGranted));
                 ActivityCompat.RequestPermissions(
-                    this.Params.GetCurrentActivityMethod?.Invoke(),
+                    andParams.GetCurrentActivityMethod?.Invoke(),
                     toBeGranted.ToArray(),
                     BLUETOOTH_PERMISSIONS_REQUEST_CODE);
 
@@ -113,7 +113,8 @@ namespace ConnectedDevice.NET.Android
 
         public override AdapterState GetAdapterState()
         {
-            var bluetoothManager = this.Params.GetCurrentActivityMethod()?.ApplicationContext?.GetSystemService(Context.BluetoothService) as BluetoothManager;
+            var andParams = (AndroidBluetoothLowEnergyCommunicatorParams)this.Params;
+            var bluetoothManager = andParams.GetCurrentActivityMethod()?.ApplicationContext?.GetSystemService(Context.BluetoothService) as BluetoothManager;
             if (bluetoothManager == null || bluetoothManager.Adapter == null) return AdapterState.MISSING;
             var a = bluetoothManager.Adapter;
             if (a.IsEnabled) return AdapterState.ON;
@@ -122,7 +123,8 @@ namespace ConnectedDevice.NET.Android
 
         private bool CheckLocationSettings()
         {
-            if (!this.Params.CheckLocationSettings) return true;
+            var andParams = (AndroidBluetoothLowEnergyCommunicatorParams)this.Params;
+            if (!andParams.CheckLocationSettings) return true;
 
             if (!OperatingSystem.IsAndroidVersionAtLeast(31))
             {
@@ -147,7 +149,7 @@ namespace ConnectedDevice.NET.Android
             return true;
         }
 
-        protected override Task SendDataNative(ClientMessage message)
+        protected override async Task SendDataNative(ClientMessage message)
         {
             ICharacteristic? characteristic;
             if (this.WriteCharacteristicToUse != null) characteristic = this.WriteCharacteristicToUse;
@@ -155,29 +157,33 @@ namespace ConnectedDevice.NET.Android
 
             if (characteristic == null) throw new NullReferenceException("Write characteristic is not set. Cannot send data.");
 
-            var writeAction = new Action(async () =>
+            var tcs = new TaskCompletionSource();
+            Action writeAction = async () =>
             {
                 try
                 {
                     var res = await characteristic.WriteAsync(message.Data);
-                    if (res != 0) throw new Exception("Bluetooth sent error with code " + res);
+                    if (res != 0) tcs.SetException(new Exception("Bluetooth sent error with code " + res));
+                    else tcs.SetResult();
                 }
                 catch (Exception ex)
                 {
                     this.PrintLog(LogLevel.Error, "Error sending data: '{0}'", ex.Message);
+                    tcs.SetException(ex);
                 }
                 finally
                 {
                     // reset WriteChar to use
                     this.WriteCharacteristicToUse = null;
                 }
-            });
+            };
 
             // if a method to run the Action on the UI thread has been given, use it
-            if (this.Params.RunOnUIThreadMethod != null) this.Params.RunOnUIThreadMethod.Invoke(writeAction);
+            var andParams = (AndroidBluetoothLowEnergyCommunicatorParams)this.Params;
+            if (andParams.RunOnUIThreadMethod != null) andParams.RunOnUIThreadMethod.Invoke(writeAction);
             else writeAction.Invoke();
 
-            return Task.CompletedTask;
+            await tcs.Task;
         }
     }
 }
