@@ -48,7 +48,6 @@ namespace ConnectedDevice.NET.Communication
         public ScanFilterOptions? ScanFilterOptions { get; set; } = new ScanFilterOptions();
         public ConnectParameters ConnectParameters { get; set; } = new ConnectParameters();
         public int ConnectTimeout { get; set; } = 5000;
-        public new Func<RemoteDevice, bool>? DeviceFilter { get; set; } = null;
 
         public List<ServiceAndCharacteristics> SupportedCharacteristics = new List<ServiceAndCharacteristics>()
         {

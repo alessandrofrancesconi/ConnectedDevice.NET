@@ -14,7 +14,6 @@ namespace ConnectedDevice.NET.Communication
         public int WriteTimeout = 1000;
         public int ReadTimeout = 1000;
         public Handshake Handshake = Handshake.None;
-        public new Func<RemoteDevice, bool>? DeviceFilter { get; set; } = null;
 
         public static readonly UsbCommunicatorParams Default = new() { };
     }
