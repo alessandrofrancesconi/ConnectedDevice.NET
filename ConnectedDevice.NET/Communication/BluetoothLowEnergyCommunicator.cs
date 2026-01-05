@@ -368,20 +368,10 @@ namespace ConnectedDevice.NET.Communication
 
             if (characteristic == null) throw new NullReferenceException("Write characteristic is not set. Cannot send data.");
 
-            try
-            {
-                var res = await characteristic.WriteAsync(message.Data);
-                if (res != 0) throw new Exception("Bluetooth sent error with code " + res);
-            }
-            catch (Exception ex)
-            {
-                this.PrintLog(LogLevel.Error, "Error sending data: '{0}'", ex.Message);
-            }
-            finally
-            {
-                // reset WriteChar to use
-                this.WriteCharacteristicToUse = null;
-            }
+            // reset WriteChar to use
+            this.WriteCharacteristicToUse = null;
+            var res = await characteristic.WriteAsync(message.Data);
+            if (res != 0) throw new Exception("Bluetooth sent error with code " + res);
         }
 
         public async Task<(byte[], int)> ReadData(ClientMessage message, Guid? readCharacteristic, CancellationToken token = default)

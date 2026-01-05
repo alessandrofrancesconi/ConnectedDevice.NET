@@ -91,8 +91,10 @@ namespace ConnectedDevice.NET
             MessageSentEventArgs args = null;
             try
             {
-                await SendDataNative(message);
                 args = new MessageSentEventArgs(this, message);
+                args.SendTimeStart = DateTime.Now;
+                await SendDataNative(message);
+                args.SendTimeEnd = DateTime.Now;
             }
             catch (Exception e)
             {
@@ -135,7 +137,7 @@ namespace ConnectedDevice.NET
                             Array.Copy(subData, sub, dataLength);
                             PartialReceivedData.AddRange(sub);
 
-                            ParseAndNotifyMessage(PartialReceivedData.ToArray());
+                            ParseAndNotifyMessage(PartialReceivedData.ToArray(), DateTime.Now);
                             PartialReceivedData.Clear();
                             startIndex += dataLength;
                         }
@@ -151,12 +153,12 @@ namespace ConnectedDevice.NET
                 else
                 {
                     // go straigth to the parsing as no terminator is expected 
-                    ParseAndNotifyMessage(data);
+                    ParseAndNotifyMessage(data, DateTime.Now);
                 }
             }
         }
 
-        private void ParseAndNotifyMessage(byte[] data)
+        private void ParseAndNotifyMessage(byte[] data, DateTime messageTime)
         {
             MessageReceivedEventArgs args = null;
             if (this.ConnectedDeviceParser != null)
@@ -165,6 +167,7 @@ namespace ConnectedDevice.NET
                 {
                     var message = ConnectedDeviceParser.Parse(ConnectedDevice, data);
                     args = new MessageReceivedEventArgs(this, message, null);
+                    args.ReceiveTime = messageTime;
                 }
                 catch (Exception e)
                 {
@@ -179,6 +182,7 @@ namespace ConnectedDevice.NET
                 {
                     Data = data
                 });
+                args.ReceiveTime = messageTime;
             }
 
             RaiseMessageReceivedEvent(args);

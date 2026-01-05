@@ -174,6 +174,7 @@ namespace ConnectedDevice.NET
 
     public class MessageReceivedEventArgs : BaseEventArgs
     {
+        public DateTime ReceiveTime;
         public ServerMessage Message;
         public Exception? Error;
 
@@ -186,6 +187,7 @@ namespace ConnectedDevice.NET
 
     public class MessageSentEventArgs : BaseEventArgs
     {
+        public DateTime SendTimeStart, SendTimeEnd;
         public ClientMessage Message;
         public Exception? Error;
 

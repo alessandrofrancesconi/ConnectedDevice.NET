@@ -104,18 +104,7 @@ namespace ConnectedDevice.NET.Communication
             if (this.ConnectedDevice == null) throw new NullReferenceException("Device not connected. Cannot send data.");
             if (this.Serial.IsOpen == false) throw new Exception("Serial port is closed. Cannot send data.");
 
-            Exception error = null;
-            try
-            {
-                this.Serial.Write(message.Data, 0, message.Data.Length);
-            }
-            catch (Exception ex)
-            {
-                error = ex;
-                this.PrintLog(LogLevel.Error, "Error sending data: {0}", ex.Message);
-            }
-
-            this.RaiseMessageSentEvent(new MessageSentEventArgs(this, message, error));
+            this.Serial.Write(message.Data, 0, message.Data.Length);
             return Task.CompletedTask;
         }
 
