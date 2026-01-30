@@ -92,18 +92,22 @@ namespace ConnectedDevice.NET
             try
             {
                 args = new MessageSentEventArgs(this, message);
-                args.SendTimeStart = DateTime.Now;
+                args.SendTimeStart = DateTime.UtcNow;
                 await SendDataNative(message);
-                args.SendTimeEnd = DateTime.Now;
+                args.SendTimeEnd = DateTime.UtcNow;
+                this.RaiseMessageSentEvent(args);
+            }
+            catch (NotConnectedException e)
+            {
+                this.PrintLog(LogLevel.Error, "Error sending data: {0}", e.Message);
+                this.DisconnectFromDevice(e);
+                return false;
             }
             catch (Exception e)
             {
                 this.PrintLog(LogLevel.Error, "Error sending data: {0}", e.Message);
                 args = new MessageSentEventArgs(this, message, new MessageSentException("Error sending data", e));
-            }
-            finally
-            {
-                RaiseMessageSentEvent(args);
+                this.RaiseMessageSentEvent(args);
             }
 
             return args.Error == null;
@@ -137,7 +141,7 @@ namespace ConnectedDevice.NET
                             Array.Copy(subData, sub, dataLength);
                             PartialReceivedData.AddRange(sub);
 
-                            ParseAndNotifyMessage(PartialReceivedData.ToArray(), DateTime.Now);
+                            ParseAndNotifyMessage(PartialReceivedData.ToArray(), DateTime.UtcNow);
                             PartialReceivedData.Clear();
                             startIndex += dataLength;
                         }
@@ -152,8 +156,8 @@ namespace ConnectedDevice.NET
                 }
                 else
                 {
-                    // go straigth to the parsing as no terminator is expected 
-                    ParseAndNotifyMessage(data, DateTime.Now);
+                    // go straight to the parsing as no terminator is expected 
+                    ParseAndNotifyMessage(data, DateTime.UtcNow);
                 }
             }
         }

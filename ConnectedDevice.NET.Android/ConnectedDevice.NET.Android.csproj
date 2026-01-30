@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <SupportedOSPlatformVersion>24.0</SupportedOSPlatformVersion>
     <Title>ConnectedDevice.NET.Android</Title>
-    <Version>1.0.13</Version>
+    <Version>1.0.15</Version>
     <Authors>Alessandro Francesconi</Authors>
     <Description>Extension for ConnectedDevice.NET to use it on Android platforms
 </Description>
@@ -22,8 +22,9 @@
     </None>
   </ItemGroup>
 
+  <!-- Temporary, wait for next Avalonia -->
   <ItemGroup>
-    <PackageReference Include="Xamarin.AndroidX.Core" Version="1.17.0" />
+	<PackageReference Include="Xamarin.AndroidX.Core" Version="1.16.0.3" />
   </ItemGroup>
 
   <ItemGroup>

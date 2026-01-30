@@ -1,4 +1,5 @@
 ﻿using ConnectedDevice.NET.Communication.Protocol;
+using ConnectedDevice.NET.Exceptions;
 using ConnectedDevice.NET.Models;
 using Microsoft.Extensions.Logging;
 using System.IO.Ports;
@@ -14,6 +15,7 @@ namespace ConnectedDevice.NET.Communication
         public int WriteTimeout = 1000;
         public int ReadTimeout = 1000;
         public Handshake Handshake = Handshake.None;
+        public bool MonitorPort = true;
 
         public static readonly UsbCommunicatorParams Default = new() { };
     }
@@ -21,6 +23,10 @@ namespace ConnectedDevice.NET.Communication
     public class UsbCommunicator : DeviceCommunicator
     {
         private SerialPort Serial;
+
+        private Task? PortMonitor;
+        private CancellationTokenSource? PortMonitorCts;
+        private readonly int MONITOR_PERIOD = 1000;
 
         public UsbCommunicator(UsbCommunicatorParams? p = null) : base(p ?? UsbCommunicatorParams.Default)
         {
@@ -51,6 +57,7 @@ namespace ConnectedDevice.NET.Communication
                 this.Serial.PortName = dev.Address;
                 this.Serial.Open();
                 this.RaiseConnectionChangedEvent(new ConnectionChangedEventArgs(this, ConnectionState.CONNECTED, null));
+                this.StartMonitor();
             }
             catch (Exception ex)
             {
@@ -59,6 +66,58 @@ namespace ConnectedDevice.NET.Communication
             }
 
             return Task.CompletedTask;
+        }
+
+        private void StartMonitor()
+        {
+            this.StopMonitor();
+
+            if (this.ConnectedDevice == null || !this.Serial.IsOpen)
+            {
+                this.PrintLog(LogLevel.Warning, "Cannot start USB Port monitor: device is not connected.");
+                return;
+            }
+
+            this.PortMonitorCts = new CancellationTokenSource();
+            this.PortMonitor = Task.Run(() => MonitorLoopAsync(this.PortMonitorCts.Token));
+        }
+
+        private void StopMonitor()
+        {
+            try { this.PortMonitorCts?.Cancel(); } catch { }
+            this.PortMonitorCts?.Dispose();
+            this.PortMonitorCts = null;
+            this.PortMonitor = null;
+        }
+
+        private async Task MonitorLoopAsync(CancellationToken token)
+        {
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    await Task.Delay(MONITOR_PERIOD, token);
+
+                    if (this.ConnectedDevice == null) // Known disconnection happened
+                        break;
+
+                    if (this.Serial.IsOpen == false)
+                    {
+                        throw new NotConnectedException("USB Port monitor detected closed port.");
+                    }
+                    else if (!SerialPort.GetPortNames().Contains(Serial.PortName))
+                    {
+                        throw new NotConnectedException("USB Port monitor detected disappeared port.");
+                    }
+                }
+                catch (OperationCanceledException) { break; }
+                catch (NotConnectedException ex)
+                {
+                    this.PrintLog(LogLevel.Warning, ex.Message);
+                    this.DisconnectFromDeviceNative(ex);
+                    break;
+                }
+            }
         }
 
         public override AdapterState GetAdapterState()
@@ -99,17 +158,17 @@ namespace ConnectedDevice.NET.Communication
             return Task.CompletedTask;
         }
 
-        protected override Task SendDataNative(ClientMessage message)
+        protected override async Task SendDataNative(ClientMessage message)
         {
             if (this.ConnectedDevice == null) throw new NullReferenceException("Device not connected. Cannot send data.");
-            if (this.Serial.IsOpen == false) throw new Exception("Serial port is closed. Cannot send data.");
+            if (this.Serial.IsOpen == false) throw new NotConnectedException("Serial port is closed. Cannot send data.");
 
-            this.Serial.Write(message.Data, 0, message.Data.Length);
-            return Task.CompletedTask;
+            await this.Serial.BaseStream.WriteAsync(message.Data);
         }
 
         protected override Task DisconnectFromDeviceNative(Exception? e = null)
         {
+            this.StopMonitor();
             if (this.ConnectedDevice == null) return Task.CompletedTask;
 
             try
