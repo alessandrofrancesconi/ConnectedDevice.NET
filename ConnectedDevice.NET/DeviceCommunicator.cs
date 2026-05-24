@@ -126,9 +126,8 @@ namespace ConnectedDevice.NET
 
             lock (receivedDataLock)
             {
-                if (Params.MessageTerminator?.Length > 0)
+                if (Params.MessageTerminator != null && Params.MessageTerminator.Length > 0)
                 {
-
                     var startIndex = 0;
                     do
                     {
@@ -157,7 +156,9 @@ namespace ConnectedDevice.NET
                 else
                 {
                     // go straight to the parsing as no terminator is expected 
-                    ParseAndNotifyMessage(data, DateTime.UtcNow);
+                    PartialReceivedData.AddRange(data);
+                    ParseAndNotifyMessage(PartialReceivedData.ToArray(), DateTime.UtcNow);
+                    PartialReceivedData.Clear();
                 }
             }
         }

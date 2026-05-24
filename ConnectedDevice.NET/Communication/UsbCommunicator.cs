@@ -196,8 +196,12 @@ namespace ConnectedDevice.NET.Communication
             try
             {
                 var sp = (SerialPort)sender;
-                string data = sp.ReadExisting();
-                this.HandleReceivedData(data);
+                int n = sp.BytesToRead;
+                if (n <= 0) return;
+                byte[] buffer = new byte[n];
+                int read = sp.Read(buffer, 0, n);
+                if (read < n) Array.Resize(ref buffer, read);
+                this.HandleReceivedData(buffer);
             }
             catch (Exception ex)
             {
