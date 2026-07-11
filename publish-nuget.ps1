@@ -20,8 +20,11 @@
 .PARAMETER OutputDir
     Folder where the .nupkg files are written. Default: ./nupkgs
 
-.PARAMETER SkipIos
-    Skip the iOS project (useful when building without the iOS workload, e.g. on Linux).
+.PARAMETER Platforms
+    Which platform-specific packages to build and publish, as a comma-separated list.
+    Accepted values: "android", "ios". Default: both.
+    The core ConnectedDevice.NET package is always built regardless of this value.
+    Example: -Platforms android  (useful when building without the iOS workload, e.g. on Linux).
 
 .PARAMETER AndroidSdkDir
     Path to the Android SDK. If omitted, the script uses ANDROID_HOME / ANDROID_SDK_ROOT,
@@ -29,6 +32,10 @@
 
 .EXAMPLE
     ./publish-nuget.ps1 -ApiKey ghp_xxxxxxxxxxxx
+
+.EXAMPLE
+    # Build/publish only the core and Android packages
+    ./publish-nuget.ps1 -Platforms android
 
 .EXAMPLE
     $env:GITHUB_TOKEN = "ghp_xxxx"; ./publish-nuget.ps1
@@ -40,7 +47,8 @@ param(
     [string] $Configuration = "Release",
     [string] $OutputDir = "./nupkgs",
     [string] $AndroidSdkDir = $(if ($env:ANDROID_HOME) { $env:ANDROID_HOME } else { $env:ANDROID_SDK_ROOT }),
-    [switch] $SkipIos
+    [ValidateSet("android", "ios")]
+    [string[]] $Platforms = @("android", "ios")
 )
 
 $ErrorActionPreference = "Stop"
@@ -53,13 +61,21 @@ if ([string]::IsNullOrWhiteSpace($AndroidSdkDir)) {
     if (Test-Path $fallback) { $AndroidSdkDir = $fallback }
 }
 
+# Normalize the requested platforms (case-insensitive, de-duplicated).
+$selectedPlatforms = @($Platforms | ForEach-Object { $_.ToLowerInvariant() } | Select-Object -Unique)
+
+# The core package is always built; platform packages depend on -Platforms.
 $projects = @(
-    "ConnectedDevice.NET/ConnectedDevice.NET.csproj",
-    "ConnectedDevice.NET.Android/ConnectedDevice.NET.Android.csproj"
+    "ConnectedDevice.NET/ConnectedDevice.NET.csproj"
 )
-if (-not $SkipIos) {
+if ($selectedPlatforms -contains "android") {
+    $projects += "ConnectedDevice.NET.Android/ConnectedDevice.NET.Android.csproj"
+}
+if ($selectedPlatforms -contains "ios") {
     $projects += "ConnectedDevice.NET.iOS/ConnectedDevice.NET.iOS.csproj"
 }
+
+Write-Host "==> Building for platforms: $($selectedPlatforms -join ', ')" -ForegroundColor Cyan
 
 # --- Validate credentials -------------------------------------------------
 if ([string]::IsNullOrWhiteSpace($ApiKey)) {
