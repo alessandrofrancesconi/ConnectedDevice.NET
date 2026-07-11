@@ -16,6 +16,7 @@ namespace ConnectedDevice.NET.Communication
         public Guid? WriteCharacteristicGuid;
         public Guid? ReadCharacteristicGuid;
         public Guid? NotifyCharacteristicGuid;
+        public bool WriteWithResponse;
 
         public ServiceAndCharacteristics(Guid service, Guid? read, Guid? notify, Guid? write)
         {
@@ -23,6 +24,7 @@ namespace ConnectedDevice.NET.Communication
             ReadCharacteristicGuid = read;
             NotifyCharacteristicGuid = notify;
             WriteCharacteristicGuid = write;
+            WriteWithResponse = false;
         }
     }
 
@@ -83,7 +85,7 @@ namespace ConnectedDevice.NET.Communication
         public static readonly BluetoothLowEnergyCommunicatorParams Default = new() {};
     }
 
-    public abstract class BluetoothLowEnergyCommunicator : DeviceCommunicator
+    public class BluetoothLowEnergyCommunicator : DeviceCommunicator
     {
         private IBluetoothLE Ble;
         
@@ -115,6 +117,11 @@ namespace ConnectedDevice.NET.Communication
         public override string GetInterfaceName()
         {
             return "Bluetooth LE";
+        }
+
+        public override AdapterState GetAdapterState()
+        {
+            return AdapterState.ON;
         }
 
         private void Adapter_DeviceConnectionLost(object? sender, DeviceErrorEventArgs e)
@@ -240,6 +247,7 @@ namespace ConnectedDevice.NET.Communication
                             var write = await service.GetCharacteristicAsync(swr.WriteCharacteristicGuid.Value);
                             if (write != null && write.CanWrite)
                             {
+                                if (swr.WriteWithResponse) write.WriteType = CharacteristicWriteType.WithResponse;
                                 this.WriteCharacteristics.Add(write);
                                 this.PrintLog(LogLevel.Debug, "Registered Write characteristic {0}.", write.Id);
                             }
@@ -262,10 +270,19 @@ namespace ConnectedDevice.NET.Communication
                             var notify = await service.GetCharacteristicAsync(swr.NotifyCharacteristicGuid.Value);
                             if (notify != null && notify.CanUpdate)
                             {
-                                this.NotifyCharacteristics.Add(notify);
-                                notify.ValueUpdated += NotifyCharacteristic_ValueUpdated;
-                                _ = notify.StartUpdatesAsync();
-                                this.PrintLog(LogLevel.Debug, "Registered Notify characteristic {0}.", notify.Id);
+                                try
+                                {
+                                    notify.ValueUpdated += NotifyCharacteristic_ValueUpdated;
+                                    await notify.StartUpdatesAsync();
+                                    this.NotifyCharacteristics.Add(notify);
+                                    this.PrintLog(LogLevel.Debug, "Subscribed Notify characteristic {0}.", notify.Id);
+                                }
+                                catch (Exception ex)
+                                {
+                                    notify.ValueUpdated -= NotifyCharacteristic_ValueUpdated;
+                                    this.PrintLog(LogLevel.Error, "StartUpdates failed on {0}: {1}", notify.Id, ex.Message);
+                                    throw;
+                                }
                             }
                         }
                     }

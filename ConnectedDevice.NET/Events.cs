@@ -13,8 +13,8 @@ namespace ConnectedDevice.NET
     public partial class DeviceCommunicator
     {
         // events
-        internal static EventHandler<DeviceDiscoveredEventArgs> _deviceDiscovered;
-        public static event EventHandler<DeviceDiscoveredEventArgs> DeviceDiscovered
+        internal EventHandler<DeviceDiscoveredEventArgs> _deviceDiscovered;
+        public event EventHandler<DeviceDiscoveredEventArgs> DeviceDiscovered
         {
             add
             {
@@ -28,8 +28,8 @@ namespace ConnectedDevice.NET
             }
         }
 
-        internal static EventHandler<DiscoverDevicesFinishedEventArgs> _discoverDevicesFinished;
-        public static event EventHandler<DiscoverDevicesFinishedEventArgs> DiscoverDevicesFinished
+        internal EventHandler<DiscoverDevicesFinishedEventArgs> _discoverDevicesFinished;
+        public event EventHandler<DiscoverDevicesFinishedEventArgs> DiscoverDevicesFinished
         {
             add
             {
@@ -43,8 +43,8 @@ namespace ConnectedDevice.NET
             }
         }
 
-        internal static EventHandler<ConnectionChangedEventArgs> _connectionChanged;
-        public static event EventHandler<ConnectionChangedEventArgs> ConnectionChanged
+        internal EventHandler<ConnectionChangedEventArgs> _connectionChanged;
+        public event EventHandler<ConnectionChangedEventArgs> ConnectionChanged
         {
             add
             {
@@ -58,8 +58,8 @@ namespace ConnectedDevice.NET
             }
         }
 
-        internal static EventHandler<AdapterStateChangedEventArgs> _adapterStateChanged;
-        public static event EventHandler<AdapterStateChangedEventArgs> AdapterStateChanged
+        internal EventHandler<AdapterStateChangedEventArgs> _adapterStateChanged;
+        public event EventHandler<AdapterStateChangedEventArgs> AdapterStateChanged
         {
             add
             {
@@ -73,8 +73,8 @@ namespace ConnectedDevice.NET
             }
         }
 
-        internal static EventHandler<MessageReceivedEventArgs> _messageReceived;
-        public static event EventHandler<MessageReceivedEventArgs> MessageReceived
+        internal EventHandler<MessageReceivedEventArgs> _messageReceived;
+        public event EventHandler<MessageReceivedEventArgs> MessageReceived
         {
             add
             {
@@ -88,8 +88,8 @@ namespace ConnectedDevice.NET
             }
         }
 
-        internal static EventHandler<MessageSentEventArgs> _messageSent;
-        public static event EventHandler<MessageSentEventArgs> MessageSent
+        internal EventHandler<MessageSentEventArgs> _messageSent;
+        public event EventHandler<MessageSentEventArgs> MessageSent
         {
             add
             {
@@ -103,7 +103,7 @@ namespace ConnectedDevice.NET
             }
         }
 
-        internal static void RaiseEvent<T>(EventHandler<T> handler, DeviceCommunicator source, T args) where T : EventArgs
+        internal void RaiseEvent<T>(EventHandler<T> handler, DeviceCommunicator source, T args) where T : EventArgs
         {
             handler?.Invoke(source, args);
         }

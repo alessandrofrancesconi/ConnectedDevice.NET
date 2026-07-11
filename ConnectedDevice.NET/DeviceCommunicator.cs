@@ -42,6 +42,9 @@ namespace ConnectedDevice.NET
         private List<byte> PartialReceivedData;
         private readonly object receivedDataLock = new object();
 
+        private TaskCompletionSource<ServerMessage?>? receiveWaiter;
+        private readonly object receiveWaiterLock = new object();
+
         public DeviceCommunicatorParams Params;
 
         public DeviceCommunicator(DeviceCommunicatorParams? p = null)
@@ -112,6 +115,52 @@ namespace ConnectedDevice.NET
 
             return args.Error == null;
         }
+        
+        public async Task<ServerMessage?> SendDataAndWait(ClientMessage message, TimeSpan timeout, CancellationToken cToken = default)
+        {
+            var tcs = new TaskCompletionSource<ServerMessage?>(TaskCreationOptions.RunContinuationsAsynchronously);
+            lock (receiveWaiterLock)
+            {
+                if (receiveWaiter != null)
+                    throw new InvalidOperationException("There is already a pending WaitReceiveData call.");
+                receiveWaiter = tcs;
+            }
+            
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cToken);
+            if (timeout > TimeSpan.Zero) cts.CancelAfter(timeout);
+            
+            using (cts.Token.Register(() => tcs.TrySetResult(null)))
+            {
+                try
+                {
+                    if (await this.SendData(message) == false) return null;
+                    return await tcs.Task.ConfigureAwait(false);
+                }
+                finally
+                {
+                    lock (receiveWaiterLock)
+                    {
+                        if (receiveWaiter == tcs) receiveWaiter = null;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Delivers the message to a pending <see cref="WaitReceiveData"/> call, if any.
+        /// </summary>
+        /// <returns>True if a waiter consumed the message, false if there was none.</returns>
+        private bool NotifyReceiveWaiter(ServerMessage message)
+        {
+            TaskCompletionSource<ServerMessage?>? waiter;
+            lock (receiveWaiterLock)
+            {
+                waiter = receiveWaiter;
+                receiveWaiter = null;
+            }
+            return waiter != null && waiter.TrySetResult(message);
+        }
+
         protected abstract Task SendDataNative(ClientMessage message);
 
         protected void HandleReceivedData(string data)
@@ -190,7 +239,10 @@ namespace ConnectedDevice.NET
                 args.ReceiveTime = messageTime;
             }
 
-            RaiseMessageReceivedEvent(args);
+            // if there is a pending WaitReceiveData, the message is delivered there and
+            // the asynchronous MessageReceived event is suppressed to avoid a double delivery.
+            if (NotifyReceiveWaiter(args.Message)) return;
+            else RaiseMessageReceivedEvent(args);
         }
 
         // events raising
@@ -198,37 +250,37 @@ namespace ConnectedDevice.NET
         protected void RaiseDeviceDiscoveredEvent(DeviceDiscoveredEventArgs args)
         {
             if (args == null) throw new ArgumentNullException("args");
-            DeviceCommunicator.RaiseEvent(DeviceCommunicator._deviceDiscovered, this, args);
+            this.RaiseEvent(this._deviceDiscovered, this, args);
         }
 
         protected void RaiseDiscoverDevicesFinishedEvent(DiscoverDevicesFinishedEventArgs args)
         {
             if (args == null) throw new ArgumentNullException("args");
-            DeviceCommunicator.RaiseEvent(DeviceCommunicator._discoverDevicesFinished, this, args);
+            this.RaiseEvent(this._discoverDevicesFinished, this, args);
         }
 
         protected void RaiseMessageReceivedEvent(MessageReceivedEventArgs args)
         {
             if (args == null) throw new ArgumentNullException("args");
-            DeviceCommunicator.RaiseEvent(DeviceCommunicator._messageReceived, this, args);
+            this.RaiseEvent(this._messageReceived, this, args);
         }
 
         protected void RaiseMessageSentEvent(MessageSentEventArgs args)
         {
             if (args == null) throw new ArgumentNullException("args");
-            DeviceCommunicator.RaiseEvent(DeviceCommunicator._messageSent, this, args);
+            this.RaiseEvent(this._messageSent, this, args);
         }
 
         protected void RaiseAdapterStateChangedEvent(AdapterStateChangedEventArgs args)
         {
             if (args == null) throw new ArgumentNullException("args");
-            DeviceCommunicator.RaiseEvent(DeviceCommunicator._adapterStateChanged, this, args);
+            this.RaiseEvent(this._adapterStateChanged, this, args);
         }
 
         protected void RaiseConnectionChangedEvent(ConnectionChangedEventArgs args)
         {
             if (args == null) throw new ArgumentNullException("args");
-            DeviceCommunicator.RaiseEvent(DeviceCommunicator._connectionChanged, this, args);
+            this.RaiseEvent(this._connectionChanged, this, args);
         }
 
         protected void PrintLog(LogLevel level, string message, params object?[] args)
