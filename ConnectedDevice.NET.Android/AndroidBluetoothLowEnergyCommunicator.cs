@@ -28,6 +28,13 @@ namespace ConnectedDevice.NET.Android
 
     public class AndroidBluetoothLowEnergyCommunicator : BluetoothLowEnergyCommunicator
     {
+        private enum PermissionsState
+        {
+            DENIED = 0,
+            PENDING = 1,
+            GRANTED = 2
+        };
+        
         public const int BLUETOOTH_PERMISSIONS_REQUEST_CODE = 0xCDB1; //ConnectedDeviceBluetooth1
         
         public EventHandler<EventArgs>? OnLocationServiceDisabled;
@@ -40,43 +47,55 @@ namespace ConnectedDevice.NET.Android
 
         private void CheckPermissions()
         {
-            if (!this.RequestBluetoothPermissions()) throw new MissingPermissionException("Some permissions are required.");
+            var p = this.RequestBluetoothPermissions();
+            if (p == PermissionsState.DENIED) throw new MissingPermissionException("Some permissions are required.");
+            if (p == PermissionsState.PENDING) throw new PermissionPendingException("Some permissions are pending.");
+            
             if (this.GetAdapterState() == AdapterState.OFF) throw new AdapterDisabledException("Bluetooth adapter is disabled.");
             if (!this.CheckLocationSettings()) throw new LocationServiceDisabledException("Location service is disabled.");
         }
 
-        private bool RequestBluetoothPermissions()
+        private PermissionsState RequestBluetoothPermissions()
         {
             var andParams = (AndroidBluetoothLowEnergyCommunicatorParams)this.Params;
-            if (!andParams.RequestPermission) return true;
+            if (!andParams.RequestPermission) return PermissionsState.GRANTED;
 
             var permissionsStatus = new Dictionary<string, Permission>();
             if (OperatingSystem.IsAndroidVersionAtLeast(31))
             {
                 permissionsStatus.Add(Manifest.Permission.BluetoothScan, ContextCompat.CheckSelfPermission(Application.Context, Manifest.Permission.BluetoothScan));
                 permissionsStatus.Add(Manifest.Permission.BluetoothConnect, ContextCompat.CheckSelfPermission(Application.Context, Manifest.Permission.BluetoothConnect));
-                permissionsStatus.Add(Manifest.Permission.BluetoothAdmin, ContextCompat.CheckSelfPermission(Application.Context, Manifest.Permission.BluetoothAdmin));
             }
             else
             {
-                permissionsStatus.Add(Manifest.Permission.Bluetooth, ContextCompat.CheckSelfPermission(Application.Context, Manifest.Permission.Bluetooth));
-                permissionsStatus.Add(Manifest.Permission.BluetoothAdmin, ContextCompat.CheckSelfPermission(Application.Context, Manifest.Permission.BluetoothAdmin));
                 permissionsStatus.Add(Manifest.Permission.AccessFineLocation, ContextCompat.CheckSelfPermission(Application.Context, Manifest.Permission.AccessFineLocation));
             }
-
-            var toBeGranted = permissionsStatus.Where(i => i.Value != Permission.Granted).Select(i => i.Key);
+            
+            var toBeGranted = permissionsStatus.Where(i => i.Value != Permission.Granted).Select(i => i.Key).ToArray();
             if (toBeGranted.Count() > 0)
             {
+                var activity = andParams.GetCurrentActivityMethod?.Invoke();
+                bool wasDenied = false;
+                foreach (var g in toBeGranted)
+                {
+                    wasDenied |= ActivityCompat.ShouldShowRequestPermissionRationale(activity, g);
+                }
+
+                if (wasDenied)
+                {
+                    return PermissionsState.DENIED;
+                }
+
                 this.PrintLog(LogLevel.Warning, "Some permission are not granted, sending request for [{0}]", string.Join(',', toBeGranted));
                 ActivityCompat.RequestPermissions(
                     andParams.GetCurrentActivityMethod?.Invoke(),
-                    toBeGranted.ToArray(),
+                    toBeGranted,
                     BLUETOOTH_PERMISSIONS_REQUEST_CODE);
 
-                return false;
+                return PermissionsState.PENDING;
             }
 
-            return true;
+            return PermissionsState.GRANTED;
         }
 
         protected override async Task ConnectToDeviceNative(RemoteDevice dev, CancellationToken cToken = default)

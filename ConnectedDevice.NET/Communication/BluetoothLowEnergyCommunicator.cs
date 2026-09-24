@@ -169,8 +169,8 @@ namespace ConnectedDevice.NET.Communication
 
             if (this.Ble.Adapter.IsScanning)
             {
-                this.PrintLog(LogLevel.Warning, "Already scanning.");
-                return;
+                this.PrintLog(LogLevel.Warning, "Already scanning. Stopping...");
+                await this.Ble.Adapter.StopScanningForDevicesAsync();
             }
 
             this.FoundDevices.Clear();
@@ -229,7 +229,7 @@ namespace ConnectedDevice.NET.Communication
 
                 this.ConnectedDeviceNative = await this.Ble.Adapter.ConnectToKnownDeviceAsync(new Guid(dev.Address), bleParams.ConnectParameters, mergedTokens.Token);
                 this.PrintLog(LogLevel.Debug, "Connected to {0}. Setting RX/TX services...", dev.Address);
-
+                
                 // for each declared Service, setup the characteristics
                 this.WriteCharacteristics.Clear();
                 this.NotifyCharacteristics.Clear();
@@ -419,6 +419,21 @@ namespace ConnectedDevice.NET.Communication
         {
             if (this.ConnectedDeviceNative?.State == DeviceState.Connected) return ConnectionState.CONNECTED;
             else return ConnectionState.DISCONNECTED;
+        }
+
+        public async Task<int> RequestMtuAsync(int mtu)
+        {
+            try
+            {
+                int newMtu = await this.ConnectedDeviceNative.RequestMtuAsync(mtu);
+                this.PrintLog(LogLevel.Debug, "MTU request completed (requested {0}, effective {1}).", mtu, newMtu);
+                return newMtu;
+            }
+            catch (Exception e)
+            {
+                this.PrintLog(LogLevel.Error, "Error while setting MTU: " + e.Message);
+                throw;
+            }
         }
 
         public override void Dispose()
